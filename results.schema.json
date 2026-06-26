@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/skill-ab-harness/results.schema.json",
+  "title": "skill-ab summary",
+  "description": "Portable, shareable result of one skill A/B experiment (skill_ab_harness.summary_dict). v2 supports N arms and reports every pairwise comparison.",
+  "type": "object",
+  "required": ["schema_version", "manifest", "primary_metric", "primary_pair", "arms", "comparisons"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"const": 2},
+    "primary_metric": {"type": "string"},
+    "primary_pair": {"type": "string", "description": "key into comparisons for the headline (badge) comparison"},
+    "manifest": {
+      "type": "object",
+      "required": ["harness_version", "model", "skill_name"],
+      "properties": {
+        "harness_version": {"type": "string"},
+        "claude_cli_version": {"type": ["string", "null"]},
+        "model": {"type": "string"},
+        "repo_path": {"type": "string"},
+        "base_ref": {"type": "string"},
+        "base_ref_sha": {"type": ["string", "null"]},
+        "skill_name": {"type": "string"},
+        "skill_md_sha256": {"type": ["string", "null"]},
+        "k": {"type": "integer"},
+        "seed": {"type": "integer"},
+        "bootstrap_iters": {"type": "integer"},
+        "permutation_iters": {"type": "integer"},
+        "alpha": {"type": "number"},
+        "platform": {"type": ["string", "null"]},
+        "timestamp": {"type": ["number", "null"]}
+      }
+    },
+    "arms": {
+      "type": "object",
+      "description": "arm label -> validity/activation counts",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["valid", "contaminated"],
+        "properties": {
+          "valid": {"type": "integer"},
+          "activation_fired": {"type": "integer"},
+          "activation_clean": {"type": "integer"},
+          "contaminated": {"type": "integer"}
+        }
+      }
+    },
+    "comparisons": {
+      "type": "object",
+      "description": "pair key (e.g. 'skill-a_vs_skill-b') -> one pairwise comparison",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["a", "b", "itt"],
+        "properties": {
+          "a": {"type": "string", "description": "left (treatment) arm label"},
+          "b": {"type": "string", "description": "right (reference) arm label"},
+          "itt": {"$ref": "#/$defs/estimates"},
+          "per_protocol": {"$ref": "#/$defs/estimates"}
+        }
+      }
+    },
+    "itt": {"$ref": "#/$defs/estimates", "description": "convenience mirror of comparisons[primary_pair].itt"},
+    "per_protocol": {"$ref": "#/$defs/estimates"},
+    "validity": {
+      "type": "object",
+      "description": "convenience mirror for the primary pair (on=A, off=B) + total contamination",
+      "required": ["on_valid", "off_valid", "off_contaminated"],
+      "properties": {
+        "on_valid": {"type": "integer"},
+        "off_valid": {"type": "integer"},
+        "off_contaminated": {"type": "integer"}
+      }
+    }
+  },
+  "$defs": {
+    "estimates": {
+      "type": "object",
+      "description": "metric name -> DiffEstimate fields (delta = a − b)",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["point", "ci_low", "ci_high", "p_value", "n_tasks", "clustered"],
+        "properties": {
+          "mean_on": {"type": "number"},
+          "mean_off": {"type": "number"},
+          "point": {"type": "number"},
+          "ci_low": {"type": "number"},
+          "ci_high": {"type": "number"},
+          "p_value": {"type": "number"},
+          "q_value": {"type": ["number", "null"]},
+          "n_on": {"type": "integer"},
+          "n_off": {"type": "integer"},
+          "n_tasks": {"type": "integer"},
+          "clustered": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

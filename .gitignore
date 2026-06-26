@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# OS / editor
+.DS_Store
+
+# Harness runtime outputs (worktrees, results, local-app run dirs). These default
+# to /tmp or ~/.skill-ab but are configurable into the repo; never commit them.
+skill_ab_worktrees/
+skill_ab_results/
+.skill-ab/
+skill-ab-demo/
+
+# Generated artifacts from a `demo`/`run`/`report` in the repo root (force-add a
+# curated sample if you ever want to track one).
+/report.html
+/badge.svg
+/badge.json
+/summary.json
+/results.jsonl
+/manifest.json
+*.orig

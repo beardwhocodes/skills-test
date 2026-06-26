@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skill-ab-harness"
+version = "0.4.0"
+description = "A/B harness for measuring the effect of a Claude Code skill on coding outcomes"
+requires-python = ">=3.11"
+dependencies = []  # stdlib only by design
+
+[project.scripts]
+skill-ab = "skill_ab_harness:main"
+skill-test = "skill_ab_harness:quick_main"
+
+[tool.setuptools]
+# The engine is one module (`skill_ab_harness`); the optional local app adds two
+# more (`skill_ab_server` + `skill_ab_app`, imported lazily by `skill-ab serve`).
+# All fixtures/assets are embedded in-code so the wheel needs no data files.
+py-modules = ["skill_ab_harness", "skill_ab_server", "skill_ab_app"]
+
+[tool.ruff]
+line-length = 100

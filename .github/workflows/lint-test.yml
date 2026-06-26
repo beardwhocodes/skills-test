@@ -1,0 +1,28 @@
+# Free, fast lint + test gate. Runs on every push and pull_request.
+# No credentials, no Claude CLI, no network beyond installing ruff — so it costs
+# nothing and gives immediate feedback. The PAID A/B regression gate lives in
+# skill-ab.yml and stays opt-in (label / workflow_dispatch); this complements it.
+name: lint-test
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint (line-length 100 from pyproject.toml)
+        run: ruff check skill_ab_harness.py test_skill_ab_harness.py
+
+      - name: Tests (stdlib runner, no claude/git/network)
+        run: python test_skill_ab_harness.py

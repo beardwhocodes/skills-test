@@ -1,0 +1,47 @@
+# Gate a skill PR on an A/B regression check.
+# Drop this into a skill repo that has a committed `skillab.toml` at its root.
+# It fails the PR if the primary metric significantly regresses (policy:
+# no-regression). Switch --policy require-improvement to demand a proven win.
+#
+# NOTE: this spends real money (it runs `claude -p` k×tasks×2 times) and needs
+# ANTHROPIC_API_KEY (or your Claude Code auth) available to the runner. Gate it
+# behind a label or workflow_dispatch so it doesn't run on every push.
+
+name: skill-ab
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]        # add the "skill-ab" label to trigger
+
+jobs:
+  ab:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'skill-ab'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # worktrees fork from base_ref; need full history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run the A/B gate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python skill_ab_harness.py ci -c skillab.toml \
+            --policy no-regression --html skill-ab-report.html
+
+      - name: Upload report + summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-ab-report
+          path: |
+            skill-ab-report.html
+            /tmp/skill_ab_results/summary.json

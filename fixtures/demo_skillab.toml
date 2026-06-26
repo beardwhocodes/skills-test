@@ -1,0 +1,19 @@
+# Demo config (used by `skill-ab demo --live`, and as a copy-paste starting point).
+[experiment]
+repo_path  = "."                          # a real run needs a git repo here
+base_ref   = "main"
+skill_src  = "fixtures/demo_skill"
+skill_name = "write-tests-first"
+k          = 6
+
+[[task]]
+id        = "add-email-validation"
+prompt    = "Add an is_valid_email(s) function with tests covering valid and invalid cases."
+setup_cmd = "true"
+test_cmd  = "pytest -q"
+
+[[task]]
+id        = "fix-null-deref"
+prompt    = "Fix the crash in parse_config when the file is empty; add a regression test."
+setup_cmd = "true"
+test_cmd  = "pytest -q"
