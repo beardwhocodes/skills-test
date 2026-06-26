@@ -649,6 +649,34 @@ _APP_JS = r"""
     }
     var modelA = modelSelect("f-model-a", "model for arm A");
     var modelB = modelSelect("f-model-b", "model for arm B");
+    // Agent-CLI selector for arm B: compare a DIFFERENT cli (codex) against claude+skill.
+    // Options come from /api/skills `runners` (the server's allowlist) so the UI can't
+    // offer a runner the server would refuse. Default = claude. A non-claude pick makes
+    // arm B an external CLI: no skill, no model, and a confounded (suggestive) result.
+    var RUNNERS = [{id:"claude", label:"Claude (default)"}];
+    var runnerB = E("select", {class:"inp", id:"f-runner-b", name:"runner_b",
+      "aria-label":"agent CLI for arm B"},
+      [E("option", {value:"claude"}, "Claude (default)")]);
+    var xcliNote = E("p", {class:"hint src-warn", hidden:"", style:"margin:-4px 0 0"});
+    function isExternalB(){ return runnerB.value && runnerB.value !== "claude"; }
+    function runnerLabel(){
+      for(var i=0;i<RUNNERS.length;i++) if(RUNNERS[i].id===runnerB.value)
+        return RUNNERS[i].label;
+      return runnerB.value;
+    }
+    function syncRunnerB(){
+      var ext = isExternalB();
+      skillB.disabled = ext; modelB.disabled = ext;
+      if(ext){ skillB.value = ""; bSrc.textContent = ""; }
+      countHint.textContent = ext
+        ? ("claude + skill A  vs  " + runnerLabel() + " CLI")
+        : "skill A vs skill B (or a no-skill control)";
+      xcliNote.hidden = !ext;
+      if(ext) xcliNote.textContent = "Arm B runs the " + runnerLabel() + " CLI instead " +
+        "of Claude — it takes no skill or model. A cross-CLI comparison is confounded " +
+        "(different binary, default model, separate login & billing), so the report " +
+        "marks it suggestive, not a verdict.";
+    }
     var includeControl = E("input", {type:"checkbox", id:"f-include-control",
       name:"include_control", "aria-label":"include control"});
     includeControl.checked = true;
@@ -674,11 +702,13 @@ _APP_JS = r"""
 
     function req(demo){
       var sb = skillB.value.trim();
+      var ext = isExternalB();   // arm B is an external CLI -> no skill / no model
       return {
         skill_a: skillA.value.trim(),
-        skill_b: (sb && sb.toLowerCase() !== "none") ? sb : null,
+        skill_b: ext ? null : ((sb && sb.toLowerCase() !== "none") ? sb : null),
         model_a: modelA.value || null,
-        model_b: modelB.value || null,
+        model_b: ext ? null : (modelB.value || null),
+        runner_b: ext ? runnerB.value : null,
         include_control: includeControl.checked,
         target: target.value.trim() || ".",
         k: parseInt(kSlider.value, 10),
@@ -691,11 +721,12 @@ _APP_JS = r"""
       startBtn.disabled = true;
       if(!estBox.hidden) estBox.classList.add("stale");
     }
-    [skillA, skillB, target, iso, judge, modelA, modelB, includeControl]
+    [skillA, skillB, target, iso, judge, modelA, modelB, includeControl, runnerB]
         .forEach(function(n){
       n.addEventListener("input", invalidate);
       n.addEventListener("change", invalidate);
     });
+    runnerB.addEventListener("change", syncRunnerB);
     function doEstimate(){
       if(!skillA.value.trim()){ toast("skill A is required", "err"); return; }
       estBox.classList.remove("stale");
@@ -725,6 +756,15 @@ _APP_JS = r"""
       countHint.textContent = n ? (n + " skill" + (n === 1 ? "" : "s") +
         " found in your project · ~/.claude · plugins — pick one or type a path")
         : "no installed skills found — type a name or path";
+      // Populate the arm-B agent-CLI options from the server allowlist (claude + codex).
+      var runners = (d && d.runners) || [];
+      if(runners.length){
+        RUNNERS = runners;
+        clear(runnerB);
+        runners.forEach(function(r){
+          runnerB.appendChild(E("option", {value:r.id}, r.label)); });
+      }
+      syncRunnerB();
     }).catch(function(){ /* picker is optional; free text still works */ });
 
     var form = E("div", {class:"card card-pad"}, [
@@ -743,6 +783,9 @@ _APP_JS = r"""
           text:"Pick different models on A vs B to compare MODELS (same skill, " +
             "sonnet vs opus). Set Skill B = none + a Model B to A/B your skill " +
             "across two models."}),
+        field("Agent CLI · Arm B",
+          "compare a different coding CLI against claude + skill A", runnerB),
+        xcliNote,
         field("Target", "PR URL fetched non-invasively, a branch, or \".\"",
           target),
         E("div", {class:"field-row"}, [

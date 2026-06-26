@@ -243,6 +243,38 @@ def _wants_control(skill_b) -> bool:
     return not skill_b or str(skill_b).lower() in _CONTROL_TOKENS
 
 
+# Runners the loopback UI may select. The browser may pick a preset NAME only; the
+# actual argv lives in h._RUNNERS (hardcoded in the engine), so a raw command template
+# is NEVER honored from a request body -- that would be loopback RCE (plan 022 blocker
+# #5). The UI wires only arm B to an alternate CLI; arm A is always claude+skill and the
+# control is always claude, which keeps the surface minimal.
+_RUNNER_CLAUDE_TOKENS = frozenset({"", "claude", "default", "none"})
+
+
+def _available_runner_presets() -> list[dict]:
+    """The runner choices the UI may offer: built-in claude + every curated engine
+    preset. Driven by h._RUNNERS so the UI can't drift from what the server accepts."""
+    return [{"id": "claude", "label": "Claude (default)"}] + [
+        {"id": name, "label": spec.get("label", name)}
+        for name, spec in sorted(h._RUNNERS.items())]
+
+
+def _resolve_runner_preset(value) -> str | None:
+    """Map a request runner value to a SAFE runner: None (built-in claude) or a curated
+    preset NAME in h._RUNNERS. Anything else -- crucially a raw command template -- is
+    REJECTED, never passed through. This is the loopback-RCE guard for the web UI."""
+    if value is None:
+        return None
+    name = str(value).strip().lower()
+    if name in _RUNNER_CLAUDE_TOKENS:
+        return None
+    if name in h._RUNNERS:
+        return name
+    raise ValueError(
+        f"unknown runner preset {value!r}: the web UI may only select a curated preset "
+        f"({', '.join(sorted(h._RUNNERS)) or 'none available'}), never a raw command")
+
+
 def _build_run_config(req: dict, run_dir: Path) -> tuple[h.ExperimentConfig, list[h.Task]]:
     """Resolve a real StartReq into (cfg, tasks). Mirrors `_build_quick`: a PR
     target gets gh/push denied so no run mutates the shared PR; '.'/branch
@@ -251,9 +283,13 @@ def _build_run_config(req: dict, run_dir: Path) -> tuple[h.ExperimentConfig, lis
     if not skill_a:
         raise ValueError("skill_a is required")
     md_a = h.resolve_skill(skill_a)
+    # Arm B may be an alternate agent CLI (curated preset only; raw commands rejected).
+    runner_b = _resolve_runner_preset(req.get("runner_b"))
     skill_b = req.get("skill_b")
     skill_b_src = skill_b_name = None
-    if not _wants_control(skill_b):
+    if runner_b is not None:
+        pass                                        # external CLI arm: no skill, no model
+    elif not _wants_control(skill_b):
         md_b = h.resolve_skill(skill_b)             # explicit 2nd skill (head-to-head)
         skill_b_src, skill_b_name = md_b.parent, skill_b
     elif _wants_model_comparison(req):
@@ -262,15 +298,18 @@ def _build_run_config(req: dict, run_dir: Path) -> tuple[h.ExperimentConfig, lis
     repo, base_ref, task_prompt, setup, test = h.resolve_target(target, req.get("prompt"))
     deny = ("Bash(gh:*)", "Bash(git push:*)") if h._PR_RE.search(target) else ()
     isolation = req.get("isolation") if req.get("isolation") in ("inject", "worktree") else "inject"
-    # SECURITY (plan 022, blocker #5): runner_a/b/off are deliberately NOT read from the
-    # request body. A runner is an arbitrary local command template, so accepting one over
-    # the loopback API would be remote code execution against the user's machine. Pluggable
-    # runners stay TOML/CLI-only; the web UI can only ever launch the built-in `claude`.
+    # SECURITY (plan 022, blocker #5): the loopback UI may pick a curated runner PRESET
+    # NAME for arm B only (resolved above via _resolve_runner_preset against h._RUNNERS) --
+    # never a raw command template, which would be remote code execution over loopback.
+    # runner_a/runner_off are never read at all: arm A is always claude+skill and the
+    # control is always claude. Raw command templates remain TOML/CLI-only.
     cfg = h.ExperimentConfig(
         repo_path=repo, base_ref=base_ref,
         skill_src=md_a.parent, skill_name=skill_a,
-        skill_b_src=skill_b_src, skill_b_name=skill_b_name,
-        model_a=req.get("model_a") or None, model_b=req.get("model_b") or None,
+        skill_b_src=skill_b_src, skill_b_name=skill_b_name, runner_b=runner_b,
+        model_a=req.get("model_a") or None,
+        # a codex arm has no claude model -> don't attach one (keeps the arm label clean)
+        model_b=None if runner_b else (req.get("model_b") or None),
         include_control=bool(req.get("include_control", True)),
         k=max(1, min(20, int(req.get("k") or 3))),   # clamp: UI caps 1-10; never runaway
         judge_enabled=bool(req.get("judge")),
@@ -287,9 +326,12 @@ def _build_estimate_config(req: dict) -> tuple[h.ExperimentConfig, list[h.Task]]
     skill_a = req.get("skill_a")
     if not skill_a:
         raise ValueError("skill_a is required")
+    runner_b = _resolve_runner_preset(req.get("runner_b"))
     skill_b = req.get("skill_b")
     skill_b_src = skill_b_name = None
-    if not _wants_control(skill_b):
+    if runner_b is not None:
+        pass                                          # external-CLI arm B = 2nd arm
+    elif not _wants_control(skill_b):
         # Dummy non-None src just to make this a head-to-head for the count.
         skill_b_src, skill_b_name = Path("."), skill_b
     elif _wants_model_comparison(req):                # same skill, two models = 2 arms
@@ -297,7 +339,9 @@ def _build_estimate_config(req: dict) -> tuple[h.ExperimentConfig, list[h.Task]]
     cfg = h.ExperimentConfig(
         repo_path=Path("."), base_ref="HEAD", skill_src=Path("."),
         skill_name=skill_a, skill_b_src=skill_b_src, skill_b_name=skill_b_name,
-        model_a=req.get("model_a") or None, model_b=req.get("model_b") or None,
+        runner_b=runner_b,
+        model_a=req.get("model_a") or None,
+        model_b=None if runner_b else (req.get("model_b") or None),
         include_control=bool(req.get("include_control", True)),
         k=max(1, min(20, int(req.get("k") or 3))),   # clamp: UI caps 1-10; never runaway
         judge_enabled=bool(req.get("judge")))
@@ -660,8 +704,11 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/health":
             return self._handle_health()
         if path == "/api/skills":
-            # The installed skills a typed name would resolve to (for the picker).
-            return self._send_json({"skills": h.list_available_skills(project_dir=Path("."))})
+            # The installed skills a typed name would resolve to (for the picker), plus
+            # the curated agent-CLI presets arm B may use (claude + codex/...).
+            return self._send_json({
+                "skills": h.list_available_skills(project_dir=Path(".")),
+                "runners": _available_runner_presets()})
         if path == "/api/runs":
             return self._send_json({"runs": _list_run_cards(self.server.runs_dir,
                                                             self.server.registry)})

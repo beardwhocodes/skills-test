@@ -65,8 +65,10 @@ The harness runs N arms, each defined by "install this skill (or nothing)".
   the run (don't regress to `rc == 0`). **Don't regress:** (a) a cross-runner primary
   pair is **confounded** → `_pair_is_cross_runner` forces the verdict to `suggestive`
   (grey, never green/red) + a "Confounded — different agent CLIs" banner, regardless of
-  CI; (b) the `serve` API NEVER reads `runner_*` from a request body (arbitrary local
-  command = loopback RCE) — runners are TOML/CLI-only; (c) `_SCRATCH_EXCLUDE` keeps
+  CI; (b) the `serve` API accepts a curated runner PRESET NAME for arm B only (validated
+  against `_RUNNERS` via `_resolve_runner_preset`), NEVER a raw command from the body
+  (= loopback RCE) and never a runner for arm A / the control; raw command templates
+  stay TOML/CLI-only; (c) `_SCRATCH_EXCLUDE` keeps
   every agent's scratch (`.claude/.codex/.aider*/…`) out of the judged diff so the blind
   judge stays CLI-neutral. Free shell-agent E2E + a real claude-vs-codex run are in
   `scratchpad/` (latter ~$0.18, both CLIs created the file headless).
@@ -117,8 +119,9 @@ The harness runs N arms, each defined by "install this skill (or nothing)".
       loopback-only + per-process token. See README "Local app".
 - [x] Pluggable CLI runner (plan 022) — compare `claude` vs `codex` vs any CLI via
       per-arm `runner_*`; cross-runner pairs downgraded to suggestive; serve refuses
-      runner_* from the body. See "Arms (generalised)" above + plan 022. Deferred:
-      aider preset, a parsed codex cost/turns adapter, serve-UI runner control,
+      runner_* from the body. The serve UI has an "Agent CLI · Arm B" picker (curated
+      preset names only). See "Arms (generalised)" above + plan 022. Deferred: aider
+      preset, a parsed codex cost/turns adapter, a runner control for arm A/control,
       Docker-sandboxing the command runner for untrusted configs.
 
 ## Tests

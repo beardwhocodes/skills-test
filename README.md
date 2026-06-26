@@ -158,9 +158,15 @@ A cross-CLI pair is **confounded by construction** — it bundles the CLI binary
 default model, prompt handling, and a separate login/billing with any skill effect —
 so the report **downgrades it to "suggestive"** (grey, never a confident green/red
 badge) and shows a banner spelling out the confound. Treat it as a lead, not a verdict;
-use the blind judge for the cleanest read. Runners are **config/CLI-only** — the `serve`
-web API never accepts a runner from a request body (it would be arbitrary code execution
-over loopback), so the local app can only ever launch `claude`.
+use the blind judge for the cleanest read.
+
+The **local app** exposes this too: the New-run form has an **"Agent CLI · Arm B"**
+picker (Claude vs Codex) — choosing Codex disables the Skill B / Model B fields and
+shows the confound caveat inline. Security: the `serve` API accepts only a **curated
+preset name** (validated against the engine's `_RUNNERS` allowlist) for arm B — never a
+**raw command** from a request body (that would be arbitrary code execution over
+loopback), and never a runner for arm A or the control. Raw command templates
+(`{prompt_file}` form) stay **config/CLI-only**.
 
 ## Tests
 `python3 test_skill_ab_harness.py` — stdlib-only, no `claude`/`git` required.

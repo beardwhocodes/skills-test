@@ -263,6 +263,9 @@ typing a setup_cmd.)
   branch in `execute_run`. Keep the stats/scorers/judge runner-agnostic.
 - Anything claude-specific (cost, turns, activation, inject mode) stays behind the
   claude branch; never assume it for a generic runner.
+- Serve UI runner control: DONE — the New-run form has an "Agent CLI · Arm B" picker
+  driven by the server's `_available_runner_presets()` allowlist; `_resolve_runner_preset`
+  accepts a curated preset NAME only (raw commands → ValueError → 400, never launched).
 - Follow-ups (deferred): per-runner prompt templates; a parsed `codex` adapter for
-  turns/cost parity; the serve UI runner control; Docker-sandbox the command runner for
-  untrusted/remote configs.
+  turns/cost parity; a runner control for arm A / the control (UI currently wires arm B
+  only); Docker-sandbox the command runner for untrusted/remote configs.
