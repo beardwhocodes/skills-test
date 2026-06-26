@@ -714,6 +714,12 @@ _APP_JS = r"""
     var startBtn = E("button", {class:"btn btn-primary", disabled:"",
       onclick:doStart}, "Start run");
     var estBox = E("div", {class:"estimate", hidden:""});
+    // Start is deliberately gated behind a successful Estimate (review usage before any
+    // spend). startNote explains WHY it's disabled so a filled-but-un-estimated form
+    // isn't a dead end. `estimated` is the single source of truth for Start's enabled
+    // state; any field edit clears it (invalidate -> refreshStart).
+    var estimated = false;
+    var startNote = E("span", {class:"hint", style:"display:block; margin-top:2px"});
 
     function req(demo){
       var sb = skillB.value.trim();
@@ -733,9 +739,24 @@ _APP_JS = r"""
         demo: !!demo
       };
     }
+    function refreshStart(){
+      startBtn.disabled = !estimated;
+      if(estimated){
+        startNote.textContent = "Estimate reviewed — ready to start.";
+        startNote.className = "hint src-ok";
+      } else if(!estBox.hidden){
+        startNote.textContent = "Inputs changed — re-estimate to unlock Start.";
+        startNote.className = "hint";
+      } else {
+        startNote.textContent =
+          "Run Estimate first — Start unlocks once you've reviewed the projected usage.";
+        startNote.className = "hint";
+      }
+    }
     function invalidate(){
-      startBtn.disabled = true;
+      estimated = false;            // any edit invalidates a prior estimate
       if(!estBox.hidden) estBox.classList.add("stale");
+      refreshStart();
     }
     [skillA, skillB, target, iso, judge, modelA, modelB, includeControl, runnerB,
      promptEl].forEach(function(n){
@@ -745,6 +766,7 @@ _APP_JS = r"""
     runnerB.addEventListener("change", syncRunnerB);
     target.addEventListener("input", syncPrompt);
     syncPrompt();
+    refreshStart();              // show the "Estimate first" note from the outset
     // Guard shared by Estimate + Start so a path/branch target can't slip through
     // promptless and 400 only at Start (the estimate uses a placeholder prompt).
     function badInputs(){
@@ -761,15 +783,25 @@ _APP_JS = r"""
       clear(estBox); estBox.hidden = false;
       estBox.appendChild(loadingEl("estimating…"));
       api("/api/estimate", {json:req(false)}).then(function(e){
-        renderEstimate(estBox, e); startBtn.disabled = false;
-      }).catch(function(err){ estBox.hidden = true; showError(err); });
+        // The estimate endpoint returns 200 with {error} for bad input ("return, don't
+        // 500"), so api() doesn't throw -- treat it as a failure, not a projection, or
+        // Start would unlock on a broken config.
+        if(e && e.error){
+          estBox.hidden = true; estimated = false;
+          toast(String(e.error).replace(/^(?:[A-Za-z]+Error|SystemExit):\s*/, ""), "err");
+          refreshStart(); return;
+        }
+        renderEstimate(estBox, e); estimated = true; refreshStart();
+      }).catch(function(err){
+        estBox.hidden = true; estimated = false; showError(err); refreshStart();
+      });
     }
     function doStart(){
       if(badInputs()) return;
       startBtn.disabled = true;
       api("/api/runs", {json:req(false)}).then(function(d){
         location.hash = "#/run/" + encodeURIComponent(d.run_id);
-      }).catch(function(err){ startBtn.disabled = false; showError(err); });
+      }).catch(function(err){ showError(err); refreshStart(); });
     }
 
     // Load the installed-skill list (best-effort: the picker enriches the form but
@@ -848,6 +880,7 @@ _APP_JS = r"""
           E("button", {class:"btn btn-ghost", onclick:startDemo},
             "Try the demo (no spend)")
         ]),
+        startNote,
         estBox
       ])
     ]);
