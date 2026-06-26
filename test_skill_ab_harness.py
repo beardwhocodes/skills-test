@@ -1085,6 +1085,19 @@ def test_unsafe_owner_repo_rejected():
         pass
 
 
+def test_directory_target_requires_a_prompt():
+    # A path target has no auto-prompt (only a PR does), so it must be given one. This is
+    # the contract the web form now enforces with its required Task-prompt field; the
+    # engine is the backstop. A prompt threads straight through to the task.
+    try:
+        h.resolve_target(".", prompt=None)
+        assert False, "a directory target with no prompt must be refused"
+    except SystemExit:
+        pass
+    repo, ref, prompt, _setup, _test = h.resolve_target(".", prompt="Add input validation")
+    assert prompt == "Add input validation"        # same prompt will run on every arm
+
+
 def test_skill_a_equals_skill_b_rejected():
     try:
         _cfg(skill_b_src=Path("/s/b"), skill_b_name="my-skill")   # == skill_name, same model

@@ -683,6 +683,21 @@ _APP_JS = r"""
     var target = E("input", {class:"inp", type:"text", id:"f-target",
       name:"target", autocomplete:"off",
       placeholder:"PR URL, branch, or .", value:".", "aria-label":"target"});
+    // Task prompt: the SAME prompt runs on every arm (the skill is the only variable).
+    // A PR target auto-generates it from the review comments, so it's optional there;
+    // any other target (a path or branch) has no default, so a prompt is required.
+    var promptHint = E("span", {class:"hint"});
+    var promptEl = E("textarea", {class:"inp", id:"f-prompt", name:"prompt", rows:"3",
+      autocomplete:"off", "aria-label":"task prompt",
+      placeholder:"e.g. Add input validation to the API and cover it with tests"});
+    function isPR(){
+      return /github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/i.test(target.value.trim());
+    }
+    function syncPrompt(){
+      promptHint.textContent = isPR()
+        ? "optional — auto-generated from the PR's open review comments"
+        : "required — what should the agent do? (runs identically on every arm)";
+    }
     var kVal = E("span", {class:"kval", text:"3"});
     var kSlider = E("input", {class:"krange", type:"range", min:"1", max:"10",
       id:"f-k", name:"k", step:"1", value:"3", "aria-label":"runs per cell"});
@@ -711,6 +726,7 @@ _APP_JS = r"""
         runner_b: ext ? runnerB.value : null,
         include_control: includeControl.checked,
         target: target.value.trim() || ".",
+        prompt: promptEl.value.trim() || null,
         k: parseInt(kSlider.value, 10),
         isolation: iso.value,
         judge: judge.checked,
@@ -721,14 +737,26 @@ _APP_JS = r"""
       startBtn.disabled = true;
       if(!estBox.hidden) estBox.classList.add("stale");
     }
-    [skillA, skillB, target, iso, judge, modelA, modelB, includeControl, runnerB]
-        .forEach(function(n){
+    [skillA, skillB, target, iso, judge, modelA, modelB, includeControl, runnerB,
+     promptEl].forEach(function(n){
       n.addEventListener("input", invalidate);
       n.addEventListener("change", invalidate);
     });
     runnerB.addEventListener("change", syncRunnerB);
+    target.addEventListener("input", syncPrompt);
+    syncPrompt();
+    // Guard shared by Estimate + Start so a path/branch target can't slip through
+    // promptless and 400 only at Start (the estimate uses a placeholder prompt).
+    function badInputs(){
+      if(!skillA.value.trim()){ toast("skill A is required", "err"); return true; }
+      if(!isPR() && !promptEl.value.trim()){
+        toast("a task prompt is required for a path or branch target", "err");
+        promptEl.focus(); return true;
+      }
+      return false;
+    }
     function doEstimate(){
-      if(!skillA.value.trim()){ toast("skill A is required", "err"); return; }
+      if(badInputs()) return;
       estBox.classList.remove("stale");
       clear(estBox); estBox.hidden = false;
       estBox.appendChild(loadingEl("estimating…"));
@@ -737,7 +765,7 @@ _APP_JS = r"""
       }).catch(function(err){ estBox.hidden = true; showError(err); });
     }
     function doStart(){
-      if(!skillA.value.trim()){ toast("skill A is required", "err"); return; }
+      if(badInputs()) return;
       startBtn.disabled = true;
       api("/api/runs", {json:req(false)}).then(function(d){
         location.hash = "#/run/" + encodeURIComponent(d.run_id);
@@ -788,6 +816,11 @@ _APP_JS = r"""
         xcliNote,
         field("Target", "PR URL fetched non-invasively, a branch, or \".\"",
           target),
+        E("div", {class:"field"}, [
+          E("label", {text:"Task prompt", "for":"f-prompt"}),
+          promptHint,
+          promptEl
+        ]),
         E("div", {class:"field-row"}, [
           field("Runs per cell (k)", "more k = tighter CIs, more usage",
             E("div", {class:"krow"}, [kSlider, kVal])),
