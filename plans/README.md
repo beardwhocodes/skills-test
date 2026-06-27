@@ -48,6 +48,7 @@ fully before starting, honor its STOP conditions, and update your row when done.
 | 020 | SPIKE: static results gallery on the `summary.json` substrate | P3 | L | — | DONE |
 | 021 | `skill-ab serve` — local web app (subscription, live streaming, secured) | P1 | L | — | DONE |
 | 022 | SPIKE→prototype: pluggable CLI runner (claude vs codex vs any CLI) | P2 | M | 021, per-arm models | DONE |
+| 023 | Optional total-spend ceiling in the serve UI (stop starting runs past ~$N) | P2 | M | 021 | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED
 (one-line rationale).
