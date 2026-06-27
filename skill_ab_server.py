@@ -618,10 +618,13 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("X-Content-Type-Options", "nosniff")
         # Defense-in-depth for the session token: no-referrer stops the token (in
-        # ?token= URLs / the iframed report) leaking via the Referer header; DENY
-        # stops a foreign page framing the token-bearing control plane (clickjacking).
+        # ?token= URLs / the iframed report) leaking via the Referer header.
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("X-Frame-Options", "DENY")
+        # SAMEORIGIN (not DENY): the Results view frames its OWN report
+        # (/api/runs/<id>/report, same origin) in an <iframe>, so DENY would block the
+        # app from rendering its own output. SAMEORIGIN still blocks a FOREIGN page from
+        # framing the token-bearing control plane (clickjacking).
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
         # The shell embeds the session token; keep token-bearing responses out of the
         # browser disk cache (also avoids serving a stale UI after an upgrade).
         self.send_header("Cache-Control", "no-store")
