@@ -308,6 +308,56 @@ _APP_CSS = """
   .toast.err{border-color:var(--bad-line); color:var(--bad)}
   @keyframes rise{from{opacity:0; transform:translateY(6px)}
     to{opacity:1; transform:translateY(0)}}
+
+  /* ---------- new-run: advanced disclosure + inline validation ---------- */
+  .note-card.warn{background:var(--bad-bg); border-color:var(--bad-line);
+    color:var(--bad)}
+  .req{color:var(--bad); margin-left:3px; font-weight:700}
+  .field-error{font-size:11.5px; font-weight:600; color:var(--bad)}
+  .field-error:empty{display:none}
+  .inp[aria-invalid=true]{border-color:var(--bad-line)}
+  .inp[aria-invalid=true]:focus{
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 22%, transparent)}
+  details.advanced{border:1px solid var(--line); border-radius:12px;
+    background:var(--card-2)}
+  details.advanced > summary{cursor:pointer; padding:12px 15px; font-size:13px;
+    font-weight:620; color:var(--ink-2); list-style:none; display:flex;
+    align-items:center; gap:8px}
+  details.advanced > summary::-webkit-details-marker{display:none}
+  details.advanced > summary::before{content:"\\25B8"; color:var(--muted);
+    font-size:11px; transition:transform .15s ease}
+  details.advanced[open] > summary::before{transform:rotate(90deg)}
+  details.advanced[open] > summary{border-bottom:1px solid var(--line)}
+  details.advanced > summary:focus-visible{outline:none;
+    box-shadow:0 0 0 3px color-mix(in srgb,#1f77b4 30%, transparent)}
+  .adv-body{display:grid; gap:16px; padding:16px 15px}
+
+  /* ---------- results: framed report loading overlay ---------- */
+  .frame-box{position:relative}
+  .frame-overlay{position:absolute; inset:0; display:grid; place-items:center;
+    background:var(--card); border-radius:14px}
+
+  /* ---------- live: progress + elapsed ---------- */
+  .prog{display:flex; align-items:center; gap:12px; margin:2px 0 10px;
+    font-size:12px; color:var(--ink-2)}
+  .prog-bar{flex:1; min-width:120px; height:8px; border-radius:5px;
+    background:var(--grid); overflow:hidden}
+  .prog-fill{height:100%; width:0%; transition:width .3s ease;
+    background:linear-gradient(90deg,#1f77b4,#5aa9dd)}
+  .prog-text{font-weight:620; font-variant-numeric:tabular-nums}
+  .prog-elapsed{color:var(--muted); font-variant-numeric:tabular-nums}
+
+  /* ---------- dashboard: how-it-works onboarding ---------- */
+  .how{margin-bottom:16px}
+  .how-h{font-size:15px; font-weight:660; margin-bottom:14px}
+  .how-steps{display:grid; gap:14px; margin-bottom:16px}
+  @media (min-width:640px){.how-steps{grid-template-columns:repeat(3,1fr)}}
+  .how-step{display:flex; gap:11px; align-items:flex-start}
+  .how-num{flex:0 0 auto; width:24px; height:24px; border-radius:50%;
+    display:grid; place-items:center; font-size:12px; font-weight:700;
+    color:#fff; background:linear-gradient(135deg,#1f77b4,#3f93cf)}
+  .how-st{font-size:13px; font-weight:640; color:var(--ink)}
+  .how-sb{font-size:12px; color:var(--muted); line-height:1.5; margin-top:2px}
 """
 
 
@@ -545,22 +595,75 @@ _APP_JS = r"""
 
   // ===================== DASHBOARD =====================
   function viewDashboard(){
+    var refreshTimer = null;
+    cleanup = function(){
+      if(refreshTimer){ clearInterval(refreshTimer); refreshTimer = null; }
+    };
     view.appendChild(E("div", {class:"sec-h"}, [
       E("h2", {text:"Runs"}),
-      E("a", {class:"btn btn-primary", href:"#/new"}, "New run")
+      E("div", {class:"row"}, [
+        E("button", {class:"btn btn-ghost", onclick:function(){ load(); }},
+          "Refresh"),
+        E("a", {class:"btn btn-primary", href:"#/new"}, "New run")
+      ])
     ]));
     var slot = E("div", {});
     view.appendChild(slot);
     slot.appendChild(loadingEl("loading runs…"));
-    api("/api/runs").then(function(d){
-      clear(slot);
-      var runs = (d && d.runs) || [];
-      if(!runs.length){ slot.appendChild(emptyState()); return; }
-      var grid = E("div", {class:"run-grid"});
-      runs.forEach(function(r){ grid.appendChild(runCard(r)); });
-      slot.appendChild(grid);
-    }).catch(function(e){ clear(slot); slot.appendChild(emptyState());
-      showError(e); });
+    function stopAuto(){
+      if(refreshTimer){ clearInterval(refreshTimer); refreshTimer = null; }
+    }
+    function load(){
+      api("/api/runs").then(function(d){
+        clear(slot);
+        var runs = (d && d.runs) || [];
+        if(!runs.length){
+          slot.appendChild(howItWorksCard());
+          slot.appendChild(emptyState());
+          stopAuto();
+          return;
+        }
+        var grid = E("div", {class:"run-grid"});
+        runs.forEach(function(r){ grid.appendChild(runCard(r)); });
+        slot.appendChild(grid);
+        // Auto-refresh only while a run is still running; stop once settled (the
+        // teardown also fires via the route cleanup hook on navigation).
+        var anyRunning = runs.some(function(r){ return r.status === "running"; });
+        if(anyRunning && !refreshTimer){ refreshTimer = setInterval(load, 4000); }
+        else if(!anyRunning){ stopAuto(); }
+      }).catch(function(e){
+        clear(slot); slot.appendChild(emptyState()); stopAuto(); showError(e);
+      });
+    }
+    load();
+  }
+  function howItWorksCard(){
+    return E("div", {class:"card card-pad how"}, [
+      E("h3", {class:"how-h", text:"How it works"}),
+      E("div", {class:"how-steps"}, [
+        howStep("1", "Pick a skill",
+          "Choose the Claude Code skill you want to measure (Skill A)."),
+        howStep("2", "Run it K× with and without",
+          "The same task runs K times with the skill and K times without — same " +
+          "code, model, and prompt. The skill is the only thing that changes."),
+        howStep("3", "Read the verdict",
+          "We compare the two arms and report whether the skill helped, hurt, or " +
+          "made no measurable difference — with confidence intervals, not guesses.")
+      ]),
+      E("div", {class:"row"}, [
+        E("button", {class:"btn btn-primary", onclick:startDemo}, "Run the demo"),
+        E("span", {class:"hint", text:"see it end-to-end with zero spend"})
+      ])
+    ]);
+  }
+  function howStep(n, title, body){
+    return E("div", {class:"how-step"}, [
+      E("div", {class:"how-num", text:n}),
+      E("div", {}, [
+        E("div", {class:"how-st", text:title}),
+        E("div", {class:"how-sb", text:body})
+      ])
+    ]);
   }
   function loadingEl(msg){
     return E("div", {class:"loading"}, [E("span", {class:"spin"}), msg]);
@@ -629,6 +732,7 @@ _APP_JS = r"""
     var skillsByName = {};
     var aSrc = E("span", {class:"src-hint"});
     var bSrc = E("span", {class:"src-hint"});
+    var aErr = E("span", {class:"field-error", role:"alert"});
     function srcFor(input, hintEl){
       var v = input.value.trim();
       if(!v || v.toLowerCase() === "none"){ hintEl.textContent = ""; return; }
@@ -692,13 +796,17 @@ _APP_JS = r"""
     var promptEl = E("textarea", {class:"inp", id:"f-prompt", name:"prompt", rows:"3",
       autocomplete:"off", "aria-label":"task prompt",
       placeholder:"e.g. Add input validation to the API and cover it with tests"});
+    var promptReq = E("span", {class:"req", "aria-hidden":"true", text:"*"});
+    var promptErr = E("span", {class:"field-error", role:"alert"});
     function isPR(){
       return /github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/i.test(target.value.trim());
     }
     function syncPrompt(){
-      promptHint.textContent = isPR()
+      var pr = isPR();
+      promptHint.textContent = pr
         ? "optional — auto-generated from the PR's open review comments"
         : "required — what should the agent do? (runs identically on every arm)";
+      promptReq.style.display = pr ? "none" : "inline";
     }
     var kVal = E("span", {class:"kval", text:"3"});
     var kSlider = E("input", {class:"krange", type:"range", min:"1", max:"10",
@@ -716,6 +824,10 @@ _APP_JS = r"""
       placeholder:"off", "aria-label":"stop after total usage"});
     var judge = E("input", {type:"checkbox", id:"f-judge", name:"judge",
       "aria-label":"blind judge"});
+    // claude pre-flight: a missing CLI means every REAL run fails on launch, so
+    // gate the real Start (the demo path stays open). Health is read once below.
+    var claudeMissing = false;
+    var warnBanner = E("div", {class:"note-card warn", style:"display:none"});
     var startBtn = E("button", {class:"btn btn-primary", disabled:"",
       onclick:doStart}, "Start run");
     var estBox = E("div", {class:"estimate", hidden:""});
@@ -746,7 +858,13 @@ _APP_JS = r"""
       };
     }
     function refreshStart(){
-      startBtn.disabled = !estimated;
+      startBtn.disabled = !estimated || claudeMissing;
+      if(claudeMissing){
+        startNote.textContent =
+          "Real runs are disabled until claude is detected on PATH — the demo still works.";
+        startNote.className = "hint";
+        return;
+      }
       if(estimated){
         startNote.textContent = "Estimate reviewed — ready to start.";
         startNote.className = "hint src-ok";
@@ -771,16 +889,36 @@ _APP_JS = r"""
     });
     runnerB.addEventListener("change", syncRunnerB);
     target.addEventListener("input", syncPrompt);
+    // Clear a field's inline error as soon as the user starts fixing it.
+    skillA.addEventListener("input", function(){ setFieldError(skillA, aErr, ""); });
+    promptEl.addEventListener("input", function(){
+      setFieldError(promptEl, promptErr, ""); });
+    target.addEventListener("input", function(){
+      if(isPR()) setFieldError(promptEl, promptErr, ""); });
     syncPrompt();
     refreshStart();              // show the "Estimate first" note from the outset
     // Guard shared by Estimate + Start so a path/branch target can't slip through
     // promptless and 400 only at Start (the estimate uses a placeholder prompt).
+    function setFieldError(input, errEl, msg){
+      if(msg){ input.setAttribute("aria-invalid", "true"); errEl.textContent = msg; }
+      else { input.removeAttribute("aria-invalid"); errEl.textContent = ""; }
+    }
     function badInputs(){
-      if(!skillA.value.trim()){ toast("skill A is required", "err"); return true; }
-      if(!isPR() && !promptEl.value.trim()){
-        toast("a task prompt is required for a path or branch target", "err");
-        promptEl.focus(); return true;
+      // Persistent inline errors (aria-invalid + a .field-error span) replace the
+      // old transient corner toast; cleared on next input (listeners below).
+      setFieldError(skillA, aErr, "");
+      setFieldError(promptEl, promptErr, "");
+      var firstBad = null;
+      if(!skillA.value.trim()){
+        setFieldError(skillA, aErr, "Skill A is required.");
+        firstBad = firstBad || skillA;
       }
+      if(!isPR() && !promptEl.value.trim()){
+        setFieldError(promptEl, promptErr,
+          "A task prompt is required for a path or branch target.");
+        firstBad = firstBad || promptEl;
+      }
+      if(firstBad){ firstBad.focus(); return true; }
       return false;
     }
     function doEstimate(){
@@ -836,53 +974,63 @@ _APP_JS = r"""
     var form = E("div", {class:"card card-pad"}, [
       skillsList,
       E("div", {class:"form"}, [
+        warnBanner,
         E("div", {class:"field-row"}, [
-          field("Skill A", "the skill under test", E("div", {}, [skillA, aSrc])),
+          field("Skill A", "the skill under test",
+            E("div", {}, [skillA, aSrc, aErr]), true),
           field("Model A", "run arm A on", modelA)
         ]),
-        E("div", {class:"field-row"}, [
-          field("Skill B", "another skill, or \"none\" for a control",
-            E("div", {}, [skillB, bSrc])),
-          field("Model B", "run arm B on", modelB)
-        ]),
-        E("p", {class:"hint", style:"margin:-4px 0 0",
-          text:"Pick different models on A vs B to compare MODELS (same skill, " +
-            "sonnet vs opus). Set Skill B = none + a Model B to A/B your skill " +
-            "across two models."}),
-        field("Agent CLI · Arm B",
-          "compare a different coding CLI against claude + skill A", runnerB),
-        xcliNote,
         field("Target", "PR URL fetched non-invasively, a branch, or \".\"",
           target),
         E("div", {class:"field"}, [
-          E("label", {text:"Task prompt", "for":"f-prompt"}),
+          E("label", {"for":"f-prompt"}, ["Task prompt", promptReq]),
           promptHint,
-          promptEl
+          promptEl,
+          promptErr
         ]),
-        E("div", {class:"field-row"}, [
-          field("Runs per cell (k)", "more k = tighter CIs, more usage",
-            E("div", {class:"krow"}, [kSlider, kVal])),
-          field("Isolation", "how the skill is delivered", iso)
-        ]),
-        field("Stop after ~$ total (optional)",
-          "soft cap on the usage proxy: stops STARTING new runs past this — " +
-          "in-flight runs still finish, so actual usage can exceed it. Blank = off.",
-          ceilingEl),
-        E("div", {class:"field"}, [
-          E("label", {class:"switch"}, [
-            includeControl, E("span", {class:"track"}, E("span", {class:"knob"})),
-            E("span", {text:"Include a no-skill control arm"})
-          ]),
-          E("span", {class:"hint",
-            text:"off = pure A vs B (cheaper; no no-skill baseline)"})
-        ]),
-        E("div", {class:"field"}, [
-          E("label", {class:"switch"}, [
-            judge, E("span", {class:"track"}, E("span", {class:"knob"})),
-            E("span", {text:"Run the blind qualitative judge"})
-          ]),
-          E("span", {class:"hint", text:"extra claude calls; compares diffs " +
-            "with arm labels stripped"})
+        field("Runs per cell (k)", "more k = tighter CIs, more usage",
+          E("div", {class:"krow"}, [kSlider, kVal])),
+        // Progressive disclosure: expert knobs stay collapsed so a novice sees
+        // only Skill A · Target · Prompt · k (and Model A). Field ids/wiring are
+        // unchanged — this is purely where they live in the tree.
+        E("details", {class:"advanced"}, [
+          E("summary", {}, "Advanced options"),
+          E("div", {class:"adv-body"}, [
+            E("div", {class:"field-row"}, [
+              field("Skill B", "another skill, or \"none\" for a control",
+                E("div", {}, [skillB, bSrc])),
+              field("Model B", "run arm B on", modelB)
+            ]),
+            E("p", {class:"hint", style:"margin:-4px 0 0",
+              text:"Pick different models on A vs B to compare MODELS (same skill, " +
+                "sonnet vs opus). Set Skill B = none + a Model B to A/B your skill " +
+                "across two models."}),
+            field("Agent CLI · Arm B",
+              "compare a different coding CLI against claude + skill A", runnerB),
+            xcliNote,
+            field("Isolation", "how the skill is delivered", iso),
+            field("Stop after ~$ total (optional)",
+              "soft cap on the usage proxy: stops STARTING new runs past this — " +
+              "in-flight runs still finish, so actual usage can exceed it. Blank = off.",
+              ceilingEl),
+            E("div", {class:"field"}, [
+              E("label", {class:"switch"}, [
+                includeControl, E("span", {class:"track"},
+                  E("span", {class:"knob"})),
+                E("span", {text:"Include a no-skill control arm"})
+              ]),
+              E("span", {class:"hint",
+                text:"off = pure A vs B (cheaper; no no-skill baseline)"})
+            ]),
+            E("div", {class:"field"}, [
+              E("label", {class:"switch"}, [
+                judge, E("span", {class:"track"}, E("span", {class:"knob"})),
+                E("span", {text:"Run the blind qualitative judge"})
+              ]),
+              E("span", {class:"hint", text:"extra claude calls; compares diffs " +
+                "with arm labels stripped"})
+            ])
+          ])
         ]),
         E("div", {class:"row"}, [
           E("button", {class:"btn", onclick:doEstimate}, "Estimate"),
@@ -897,6 +1045,18 @@ _APP_JS = r"""
     view.appendChild(form);
     view.appendChild(E("p", {class:"note-card", style:"margin-top:14px",
       text:SUB_NOTE}));
+    // Pre-flight health (item 2): cached-read once; on a missing claude raise the
+    // warning banner + lock the real Start (demo stays usable).
+    refreshHealth().then(function(hd){
+      if(hd && hd.claude_on_path) return;
+      claudeMissing = true;
+      warnBanner.style.display = "block";
+      warnBanner.textContent =
+        "claude was not found on PATH, so real runs can't start. Install Claude " +
+        "Code and log in (Settings re-checks this), or try the demo below — it " +
+        "runs end-to-end with zero spend.";
+      refreshStart();
+    });
   }
   function field(label, hint, control){
     // Wire the visible label to its control's id (the control may be the input
@@ -947,6 +1107,7 @@ _APP_JS = r"""
     var LAB_IDX = {}, LAB_N = 0;
     var finished = false, es = null;
     var spent = 0, ceiling = null;
+    var total = 0, completed = 0, tick = null, startTime = Date.now();
 
     var demoBadge = isDemo
       ? E("span", {class:"demo-badge"}, "DEMO · no spend") : null;
@@ -959,6 +1120,12 @@ _APP_JS = r"""
         E("div", {class:"live-id", text:id})
       ]),
       E("div", {class:"row"}, [demoBadge, abortBtn])
+    ]);
+    var progFill = E("div", {class:"prog-fill"});
+    var progText = E("span", {class:"prog-text", text:"0 / 0 cells"});
+    var elapsedEl = E("span", {class:"prog-elapsed", text:"0s"});
+    var progEl = E("div", {class:"prog"}, [
+      E("div", {class:"prog-bar"}, progFill), progText, elapsedEl
     ]);
     var gridEl = E("div", {class:"cell-grid"});
     var legend = E("div", {class:"legend-row"}, [
@@ -974,6 +1141,7 @@ _APP_JS = r"""
     var doneSlot = E("div", {});
 
     view.appendChild(head);
+    view.appendChild(progEl);
     view.appendChild(E("div", {class:"sec-h",
       style:"margin-top:18px"}, [E("h2", {style:"font-size:15px",
       text:"Cells"})]));
@@ -1018,8 +1186,27 @@ _APP_JS = r"""
       c.el.className = "cell " + status;
       c.st.textContent = status;
     }
+    function updateProgress(){
+      progText.textContent = completed + " / " + total + " cells";
+      var pct = total ? Math.min(100, (completed / total) * 100) : 0;
+      progFill.style.width = pct + "%";
+    }
+    function fmtElapsed(ms){
+      var s = Math.floor(ms / 1000);
+      if(s < 60) return s + "s";
+      return Math.floor(s / 60) + "m " + (s % 60) + "s";
+    }
+    function startTick(){
+      if(tick) return;
+      elapsedEl.textContent = fmtElapsed(Date.now() - startTime);
+      tick = setInterval(function(){
+        elapsedEl.textContent = fmtElapsed(Date.now() - startTime);
+      }, 1000);
+    }
+    function stopTick(){ if(tick){ clearInterval(tick); tick = null; } }
     function resetLive(ev){       // reconnect-safe: replays always start here
       CELLS = {}; clear(gridEl); clear(consoleEl);
+      total = (ev.cells || []).length; completed = 0; updateProgress();
       consoleEl.appendChild(E("div", {class:"console-empty",
         text:"waiting for agent output…"}));
       (ev.cells || []).forEach(function(cell){
@@ -1053,6 +1240,7 @@ _APP_JS = r"""
         var status = ev.contaminated_by ? "contaminated"
           : (ev.itt_valid ? "valid" : "invalid");
         setCell(ev.label, status);
+        completed++; updateProgress();
         var bits = [status];
         if(ev.contaminated_by) bits.push("by " + ev.contaminated_by);
         if(ev.activated) bits.push("skill fired");
@@ -1063,6 +1251,7 @@ _APP_JS = r"""
       },
       run_skipped: function(ev){
         setCell(ev.label, "skipped");
+        completed++; updateProgress();
         appendLine(ev.label, "skipped — " + (ev.reason || "cost ceiling reached"), "sys");
       },
       cost: function(ev){
@@ -1073,6 +1262,8 @@ _APP_JS = r"""
       experiment_done: function(ev){
         finished = true;
         if(es) es.close();
+        stopTick();
+        if(total){ completed = total; updateProgress(); }
         abortBtn.disabled = true;
         clear(doneSlot);
         doneSlot.appendChild(E("div", {class:"card card-pad",
@@ -1094,6 +1285,7 @@ _APP_JS = r"""
       error: function(ev){
         finished = true;
         if(es) es.close();
+        stopTick();
         var msg = ev.message || "run error";
         appendLine(null, "error: " + msg, "sys");
         toast(msg, "err");
@@ -1107,6 +1299,7 @@ _APP_JS = r"""
       }).catch(showError);
     }
 
+    startTick();
     es = new EventSource(withTok("/api/runs/" +
       encodeURIComponent(id) + "/events"));
     es.onmessage = function(m){
@@ -1130,6 +1323,7 @@ _APP_JS = r"""
     cleanup = function(){
       finished = true;
       if(es) es.close();
+      stopTick();
       hideTicker();
     };
   }
@@ -1138,26 +1332,163 @@ _APP_JS = r"""
   function viewResults(id){
     var reportUrl = "/api/runs/" + encodeURIComponent(id) + "/report";
     var badgeUrl = "/api/runs/" + encodeURIComponent(id) + "/badge";
+    var reportTimer = null;
+    // Set early so navigating away always clears the load-timeout, even if the
+    // /api/runs status probe is still in flight.
+    cleanup = function(){
+      if(reportTimer){ clearTimeout(reportTimer); reportTimer = null; }
+    };
     view.appendChild(E("a", {class:"back-link", href:"#/"}, "← Dashboard"));
     view.appendChild(E("div", {class:"sec-h"}, [
       E("h2", {text:"Results"}),
       E("span", {class:"live-id", text:id})
     ]));
-    var badgeRow = E("div", {class:"card card-pad",
-      style:"margin-bottom:14px"}, [
-      E("div", {class:"row", style:"justify-content:space-between"}, [
-        E("img", {src:withTok(badgeUrl), alt:"verdict badge",
-          style:"height:20px"}),
-        E("button", {class:"btn copybtn", onclick:copyMd},
-          "Copy badge markdown")
-      ]),
-      E("div", {class:"md-box", id:"md-box", text:mdText()})
-    ]);
-    view.appendChild(badgeRow);
-    var frame = E("iframe", {class:"frame", src:withTok(reportUrl),
-      title:"run report", loading:"lazy"});
-    view.appendChild(frame);
+    var slot = E("div", {});
+    view.appendChild(slot);
+    slot.appendChild(loadingEl("loading results…"));
 
+    // GUARD (plan 024 §3.1): error/aborted runs never wrote report.html, so the old
+    // unconditional iframe rendered the report endpoint's 404 JSON. Read the run's
+    // status from the existing token-gated /api/runs list and only frame a `done`
+    // run; everything else gets an error card (no new server endpoint needed).
+    api("/api/runs").then(function(d){
+      var runs = (d && d.runs) || [];
+      var card = null;
+      for(var i = 0; i < runs.length; i++){
+        if(runs[i].id === id){ card = runs[i]; break; }
+      }
+      var status = card ? card.status : "missing";
+      if(status === "done"){ renderReport(card); }
+      else if(status === "running"){ renderUnavailable("running"); }
+      else if(status === "error" || status === "aborted"){
+        renderUnavailable(status);
+      } else { renderUnavailable("missing"); }
+    }).catch(function(){
+      // Couldn't read the list — frame the report anyway; the iframe
+      // onerror/timeout fallback below catches a genuine failure.
+      renderReport(null);
+    });
+
+    function renderReport(card){
+      clear(slot);
+      // Item 5: verdict headline above the frame (skillTitle + verdictPill +
+      // primary-metric delta); the badge block is demoted to a collapsed section.
+      var headBox = E("div", {class:"card card-pad", style:"margin-bottom:14px"});
+      slot.appendChild(headBox);
+      renderHeadline(headBox, card);
+      slot.appendChild(badgeSection(card));
+      // Item 6: loading overlay over the frame until `load` fires; item 1: an
+      // onerror/timeout fallback to the error card if the report never renders.
+      var overlay = E("div", {class:"frame-overlay"},
+        loadingEl("loading report…"));
+      var frame = E("iframe", {class:"frame", src:withTok(reportUrl),
+        title:"run report", loading:"lazy"});
+      var settled = false;
+      function settle(ok){
+        if(settled) return; settled = true;
+        if(reportTimer){ clearTimeout(reportTimer); reportTimer = null; }
+        if(overlay.parentNode) overlay.remove();
+        if(!ok) renderUnavailable("error");
+      }
+      frame.addEventListener("load", function(){ settle(true); });
+      frame.addEventListener("error", function(){ settle(false); });
+      reportTimer = setTimeout(function(){ if(!settled) settle(false); }, 20000);
+      slot.appendChild(E("div", {class:"frame-box"}, [frame, overlay]));
+    }
+
+    function renderHeadline(box, card){
+      card = card || {};
+      clear(box);
+      box.appendChild(E("div", {class:"row",
+        style:"justify-content:space-between; gap:12px; flex-wrap:wrap"}, [
+        skillTitle(card.skill_a, card.skill_b),
+        verdictPill(card.verdict || "inconclusive")
+      ]));
+      var deltaEl = E("div", {class:"hint", style:"margin-top:9px"});
+      box.appendChild(deltaEl);
+      // The card carries skill names + verdict; the point delta lives in
+      // summary.json (existing token-gated /summary), fetched here for the headline.
+      api("/api/runs/" + encodeURIComponent(id) + "/summary").then(function(sm){
+        var metric = sm && sm.primary_metric;
+        var est = (sm && sm.itt && metric) ? sm.itt[metric] : null;
+        if(!est || est.point == null){ deltaEl.remove(); return; }
+        clear(deltaEl);
+        deltaEl.appendChild(E("b", {style:"color:var(--ink-2)",
+          text:metric + " "}));
+        deltaEl.appendChild(document.createTextNode(
+          signedPct(est.point) + ci95(est) + " · intention-to-treat"));
+      }).catch(function(){ deltaEl.remove(); });
+    }
+
+    function badgeSection(card){
+      // Item 10: only build the badge <img> when the run wrote one (verdict
+      // truthy → badge_url present); otherwise show a neutral pill, mirroring
+      // runCard's guard. An <img> onerror swaps the same pill + locks Copy.
+      var hasBadge = !!(card && card.badge_url);
+      var body = E("div", {class:"adv-body"});
+      if(hasBadge){
+        var img = E("img", {src:withTok(badgeUrl), alt:"verdict badge",
+          style:"height:20px"});
+        var pill = E("span", {class:"pill", style:"display:none"},
+          [E("span", {class:"dot"}), "inconclusive — no badge"]);
+        var copyBtn = E("button", {class:"btn copybtn", onclick:copyMd},
+          "Copy badge markdown");
+        img.addEventListener("error", function(){
+          img.style.display = "none";
+          pill.style.display = "inline-flex";
+          copyBtn.disabled = true;
+        });
+        body.appendChild(E("div", {class:"row",
+          style:"justify-content:space-between"}, [
+          E("div", {class:"row"}, [img, pill]), copyBtn]));
+        body.appendChild(E("div", {class:"md-box", text:mdText()}));
+      } else {
+        body.appendChild(E("span", {class:"pill"},
+          [E("span", {class:"dot"}), "inconclusive — no badge"]));
+      }
+      return E("details", {class:"advanced", style:"margin-bottom:14px"}, [
+        E("summary", {}, "Verdict badge & sharing"),
+        body
+      ]);
+    }
+
+    function renderUnavailable(status){
+      clear(slot);
+      var msgs = {
+        error: "This run ended with an error before a report was written. Open " +
+          "the live run to see what happened, then start a new run.",
+        aborted: "This run was aborted, so no report was generated.",
+        running: "This run is still in progress — the report isn't ready yet.",
+        missing: "No report was found for this run. It may have failed, been " +
+          "aborted, or been cleared after a server restart."
+      };
+      var buttons = (status === "running")
+        ? [E("a", {class:"btn btn-primary",
+             href:"#/run/" + encodeURIComponent(id)}, "Go to live run"),
+           E("a", {class:"btn", href:"#/"}, "Back to Dashboard")]
+        : [E("a", {class:"btn btn-primary", href:"#/new"}, "Start a new run"),
+           E("a", {class:"btn", href:"#/"}, "Back to Dashboard")];
+      slot.appendChild(E("div", {class:"card card-pad"}, [
+        E("div", {class:"row", style:"margin-bottom:12px"}, [
+          verdictPill(status === "missing" ? "unavailable" : status)
+        ]),
+        E("h3", {style:"font-size:16px; font-weight:660; margin-bottom:6px",
+          text:"Report unavailable"}),
+        E("p", {class:"hint", style:"max-width:54ch; line-height:1.6",
+          text:msgs[status] || msgs.missing}),
+        E("div", {class:"row", style:"margin-top:16px"}, buttons)
+      ]));
+    }
+
+    function signedPct(x){
+      var v = x * 100;
+      return (v > 0 ? "+" : "") + v.toFixed(0) + "%";
+    }
+    function ci95(est){
+      if(est.ci_low == null || est.ci_high == null) return "";
+      return "  95% CI [" + signedPct(est.ci_low) + ", " +
+        signedPct(est.ci_high) + "]";
+    }
     function mdText(){
       // Never embed the session token in shareable markdown (it's a full-capability
       // secret, and the badge is meant to be pasted into a README/PR). Point at the

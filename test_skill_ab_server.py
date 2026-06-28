@@ -458,6 +458,39 @@ def test_finalize_run_threads_tasks_into_treatments():
         assert "Write a test first." in on["guidance"]["text"]
 
 
+def test_report_endpoint_404_for_run_without_report_html():
+    # Root condition behind plan 024 §3.1: error/aborted runs never write report.html,
+    # so the report endpoint returns the 404 {"error": ...} the OLD Results view iframed
+    # raw. The Results view now reads /api/runs status before framing; this locks the
+    # signal (the guard reads the existing token-gated endpoint, no new route).
+    with _serve() as (port, _):
+        st, data = _request(port, "GET", "/api/runs/nope-no-such-run/report",
+                            token=TOKEN)
+        assert st == 404, (st, data)
+        assert json.loads(data).get("error")        # the JSON the UI must not iframe
+        # still token-gated (the guard's status read is an authed call)
+        st2, _ = _request(port, "GET", "/api/runs/nope-no-such-run/report")
+        assert st2 == 403
+
+
+def test_run_card_surfaces_terminal_status_for_results_guard():
+    # The Results error card keys off the in-memory run's status (error/aborted) carried
+    # by /api/runs -> RunRegistry.snapshot_cards. Drive the registry directly so it's
+    # deterministic (no agent, no timing race).
+    reg = s.RunRegistry()
+    reg.create("r1", {"demo": False, "skill_a": "x", "skill_b": None,
+                      "created_ts": time.time()})
+    assert reg.terminate("r1", "error", {"type": "error", "message": "boom"}) is True
+    card = next(c for c in reg.snapshot_cards() if c["id"] == "r1")
+    assert card["status"] == "error"
+    assert card["verdict"] is None                  # no badge/verdict on a failed run
+    # an aborted run is surfaced the same way (abort() forces the 'aborted' terminal)
+    reg.create("r2", {"demo": False, "skill_a": "y", "created_ts": time.time()})
+    assert reg.abort("r2") is True
+    card2 = next(c for c in reg.snapshot_cards() if c["id"] == "r2")
+    assert card2["status"] == "aborted"
+
+
 def _run_all() -> None:
     fns = [v for k, v in sorted(globals().items())
            if k.startswith("test_") and callable(v)]
