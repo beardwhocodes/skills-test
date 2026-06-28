@@ -3068,8 +3068,8 @@ _HTML_STYLE = """
     overflow:visible}
   .cmp-bar{position:sticky; top:0; z-index:6; display:flex; flex-wrap:wrap;
     align-items:center; gap:8px 12px; padding:10px 12px; background:var(--card);
-    border-bottom:1px solid var(--line);
-    border-radius:13px 13px 0 0}
+    border-bottom:1px solid var(--line)}
+  /* the contrast band is the first child now, so it owns the top rounding */
   .cmp-task{font-size:13px; font-weight:660; display:flex; align-items:baseline;
     gap:8px}
   .cmp-task .count{font-size:11.5px; font-weight:550; color:var(--muted)}
@@ -3114,6 +3114,52 @@ _HTML_STYLE = """
   .railchip.cur{color:var(--ink); background:var(--rail-cur);
     border-color:color-mix(in srgb,var(--accent) 45%, var(--line))}
   .railchip .rc{color:var(--muted); margin-left:6px; font-variant-numeric:tabular-nums}
+
+  /* ---- contrast band: verdict-first scorecards + divergence map (§1.6) ---- */
+  /* all tokens (--good/--bad/--diverge/--accent) are themed in :root AND the dark
+     block above, so these var()-driven rules adapt to both themes unchanged. */
+  .contrast{display:flex; flex-direction:column; gap:9px; padding:12px 14px;
+    background:var(--card-2); border-bottom:1px solid var(--line);
+    border-radius:13px 13px 0 0}
+  .scorecards{display:flex; flex-wrap:wrap; gap:8px}
+  .scorecard{flex:1 1 200px; min-width:0; display:flex; flex-wrap:wrap;
+    align-items:center; gap:6px 10px; padding:8px 11px; background:var(--card);
+    border:1px solid var(--line); border-radius:10px}
+  .scorecard .sc-arm{font-family:var(--mono); font-size:11.5px; font-weight:700;
+    color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    max-width:160px}
+  .scorecard .sc-stat{font-size:11px; color:var(--muted);
+    font-variant-numeric:tabular-nums}
+  .scorecard .sc-churn{font-family:var(--mono)}
+  .scorecard .sc-empty{font-size:11px; color:var(--faint); font-style:italic}
+  .pills{display:inline-flex; gap:4px}
+  .pill{display:inline-flex; align-items:center; justify-content:center;
+    width:17px; height:17px; border-radius:5px; font-size:10.5px; font-weight:700;
+    font-family:var(--mono); border:1px solid var(--line-2)}
+  .pill.pass{color:var(--good); background:var(--good-bg); border-color:var(--good-line)}
+  .pill.fail{color:var(--bad); background:var(--bad-bg); border-color:var(--bad-line)}
+  .thesis{margin:0; font-size:12.5px; font-weight:600; color:var(--ink-2);
+    line-height:1.5}
+  .divmap{display:flex; flex-wrap:wrap; gap:5px; align-items:center}
+  .chip{font:inherit; font-size:11px; font-family:var(--mono); color:var(--ink-2);
+    background:var(--card); border:1px solid var(--line-2); border-radius:7px;
+    padding:3px 9px; cursor:pointer; max-width:240px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; border-left-width:3px}
+  .chip:hover{color:var(--ink); border-color:var(--accent)}
+  .chip.both{border-left-color:var(--accent)}
+  .chip.skill-only{border-left-color:var(--good)}
+  .chip.ctrl-only{border-left-color:var(--diverge)}
+  .divmap .chip:focus-visible{outline:none; box-shadow:0 0 0 3px var(--accent-ring)}
+  .dod{display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center;
+    font-size:11px; color:var(--muted)}
+  .dod-h{font-weight:600; color:var(--ink-2)}
+  .dod-note{font-weight:500; color:var(--faint)}
+  .dod-file{display:inline-flex; gap:5px; align-items:baseline;
+    font-family:var(--mono); font-variant-numeric:tabular-nums}
+  .dod-n{font-size:10px}
+  .dod-n.agree{color:var(--muted)}
+  .dod-n.a{color:var(--good)}
+  .dod-n.b{color:var(--diverge)}
 
   .panes{display:flex; gap:0}
   .pane{flex:1 1 0; min-width:0; max-height:72vh; overflow:auto;
@@ -4561,6 +4607,14 @@ _HTML_SCRIPT = r"""(function(){
       panes.forEach(function(p){
         p.addEventListener("mousedown", function(){ setFocusPane(cmp, p); });
       });
+      // divergence-map chips: getAttribute(data-target) -> scroll that file into view
+      // in the diff (escape-safe; gotoFile only reads attrs/textContent, no innerHTML).
+      list(cmp, ".divmap .chip").forEach(function(chip){
+        chip.addEventListener("click", function(){
+          var id = chip.getAttribute("data-target");
+          if (id) gotoFile(cmp, id);
+        });
+      });
       injectCopy(cmp);
 
       // restore persisted prefs (work under file://)
@@ -4782,6 +4836,284 @@ def _treatment_inputs_html(manifest: dict, cfg: ExperimentConfig) -> str:
     return "".join(parts)
 
 
+# ---------------------------------------------------------------------------
+# Contrast band: verdict-first scorecards + divergence map + beat captions
+# (plan 024 §1.6). Everything here is built SERVER-SIDE and escaped: integers, a
+# single status letter, and html.escape'd filenames ONLY -- no raw diff code, and
+# nothing here ever enters window.SKILL_AB or an innerHTML-of-raw-text path. Beat
+# captions ride the native `title` attribute (plain text), NOT `data-tip` -- the
+# tooltip wiring assigns data-tip through innerHTML, which a user-controlled
+# filename must never reach.
+# ---------------------------------------------------------------------------
+
+_PASS_THRESHOLD = 0.5
+# scorecard pills: (card key, RunResult.scores metric, status letter).
+_SCORE_PILLS = (("tests", "tests_pass", "T"), ("lint", "lint_pass", "L"),
+                ("build", "build_pass", "B"))
+# change-shape: a parsed-diff line count over which a modify counts as a "rewrite".
+_REWRITE_LINES = 40
+# a both-arms size gap (added+deleted) below which the change reads as "no measurable
+# difference" rather than larger/smaller.
+_SIZE_MARGIN = 4
+
+# path/ext -> coarse category (plan 024 §1.6). Order matters: tests and CI win over a
+# bare extension. FACTUAL grouping only -- never an authoritative "what it means".
+_MANIFEST_FILES = {"package.json", "pyproject.toml", "go.mod"}
+
+
+def _file_category(path: str) -> str:
+    base = path.rsplit("/", 1)[-1].lower()
+    low = path.lower()
+    if base.startswith("test_") or ".test." in base:
+        return "tests"
+    if low.startswith(".github/") or "/.github/" in low or base == "dockerfile" \
+            or base.endswith((".yml", ".yaml")):
+        return "ci"
+    if base in _MANIFEST_FILES:
+        return "manifest"
+    if base.endswith(".lock"):
+        return "lockfile"
+    if base.endswith(".md"):
+        return "docs"
+    return "source"
+
+
+def _change_shape(status: str, add: int, dele: int) -> str:
+    """Coarse shape of one file's change (plan 024 §1.6). Status wins; then pure-add /
+    pure-delete; then a line-count rewrite vs a targeted edit."""
+    if status == "A":
+        return "new file"
+    if status == "D":
+        return "deleted"
+    if status == "R":
+        return "renamed"
+    if dele == 0 and add > 0:
+        return "pure additions"
+    if add == 0 and dele > 0:
+        return "pure deletions"
+    if add + dele >= _REWRITE_LINES:
+        return f"{add + dele}-line rewrite"
+    return "targeted edit"
+
+
+def _beat_caption(path: str, status: str, add: int, dele: int,
+                  diverge_label: str) -> str:
+    """A FACTUAL one-liner for a divergence-map chip: category, change shape, churn,
+    and which arm(s) touched it. Never an authoritative interpretation."""
+    return (f"{_file_category(path)} {_MIDDOT} {_change_shape(status, add, dele)} "
+            f"{_MIDDOT} +{add}/{_MINUS}{dele} {_MIDDOT} {diverge_label}")
+
+
+def _divergence(paths_a: set[str], paths_b: set[str]) -> dict[str, str]:
+    """Classify each touched path by set-comparing the primary pair's two arms (plan
+    024 §1.3): in both -> 'both'; only the treatment arm A -> 'skill-only'; only the
+    reference arm B -> 'ctrl-only'. Pure + arm-symmetric (A/B come from primary_pair)."""
+    out: dict[str, str] = {}
+    for p in paths_a | paths_b:
+        if p in paths_a and p in paths_b:
+            out[p] = "both"
+        elif p in paths_a:
+            out[p] = "skill-only"
+        else:
+            out[p] = "ctrl-only"
+    return out
+
+
+def _pill_state(scores: dict, metric: str) -> bool | None:
+    """Pass(True)/fail(False)/no-data(None) for one metric. Absent or NaN
+    (not-applicable to this task) renders NO pill. `v != v` is the stdlib NaN test."""
+    v = scores.get(metric)
+    if v is None or v != v:
+        return None
+    return v >= _PASS_THRESHOLD
+
+
+def _arm_card(rep: "RunResult | None") -> dict | None:
+    """Representative-run scorecard data for one arm: pass/fail pills, files touched,
+    +adds/-dels parsed from the diff, turns and cost. Carries a per-path file index +
+    status/counts so the divergence map can target the rendered file node. Numbers and
+    (un-escaped) paths only -- escaping happens at render."""
+    if rep is None:
+        return None
+    files = parse_unified_diff(rep.diff)
+    fmeta = {pf.path: {"i": fi, "status": pf.status,
+                       "add": pf.add_count, "del": pf.del_count}
+             for fi, pf in enumerate(files)}
+    return {
+        "tests": _pill_state(rep.scores, "tests_pass"),
+        "lint": _pill_state(rep.scores, "lint_pass"),
+        "build": _pill_state(rep.scores, "build_pass"),
+        "files": len(files),
+        "add": sum(pf.add_count for pf in files),
+        "del": sum(pf.del_count for pf in files),
+        "turns": rep.num_turns,
+        "cost": rep.cost_usd,
+        "fmeta": fmeta,
+    }
+
+
+def _touched_tests(card: dict | None) -> bool:
+    return bool(card) and any(_file_category(p) == "tests" for p in card["fmeta"])
+
+
+def _thesis_text(a_card: dict | None, b_card: dict | None,
+                 a_label: str, b_label: str) -> str:
+    """One-line templated verdict from the primary pair's score/size deltas, assembled
+    from a FIXED vocabulary (plan 024 §1.6). Deterministic -- never free-form text. The
+    test outcome dominates; size + whether the change is test-backed refine it."""
+    if a_card is None and b_card is None:
+        return "no valid runs to compare on this task"
+    if a_card is None or b_card is None:
+        present = a_label if a_card else b_label
+        return f"only the {present} arm produced a valid run on this task"
+    ta, tb = a_card["tests"], b_card["tests"]
+    size_a, size_b = a_card["add"] + a_card["del"], b_card["add"] + b_card["del"]
+    backed = "test-backed " if _touched_tests(a_card) else ""
+    if ta is True and tb is False:
+        return f"{a_label} kept tests green where {b_label} did not, with a {backed}change"
+    if ta is False and tb is True:
+        return f"{a_label} failed tests that {b_label} passed"
+    if ta is True and tb is True:
+        if size_a - size_b > _SIZE_MARGIN:
+            return f"both arms passed tests; {a_label} made a larger {backed}change"
+        if size_b - size_a > _SIZE_MARGIN:
+            return f"both arms passed tests; {a_label} made a smaller change"
+        return "no measurable difference on this task"
+    if ta is False and tb is False:
+        return "neither arm passed tests on this task"
+    if size_a == size_b:
+        return "no measurable difference on this task"
+    bigger, smaller = (a_label, b_label) if size_a > size_b else (b_label, a_label)
+    return f"{bigger} made a larger change than {smaller} (tests not measured)"
+
+
+def _signed_change_lines(rep: "RunResult | None", path: str) -> list[str]:
+    """The signed (+add / -del) change-lines for one file in a run's diff -- the input
+    to the diff-of-diffs heuristic. Context lines are dropped."""
+    if rep is None:
+        return []
+    for pf in parse_unified_diff(rep.diff):
+        if pf.path != path:
+            continue
+        lines: list[str] = []
+        for hk in pf.hunks:
+            for row in hk.rows:
+                if row.kind in ("add", "del"):
+                    sign = "+" if row.kind == "add" else "-"
+                    lines.append(sign + (row.segments[0][0] if row.segments else ""))
+        return lines
+    return []
+
+
+def _diffofdiffs(a_rep: "RunResult | None", b_rep: "RunResult | None",
+                 shared_paths: list[str]) -> dict[str, dict]:
+    """Per shared file, a DETERMINISTIC HEURISTIC (NOT a 3-way merge): SequenceMatcher
+    over each arm's signed change-lines -> agree / A-only / B-only line counts
+    (equal->agree, delete/replace->A-only, insert->B-only). Ints only."""
+    out: dict[str, dict] = {}
+    for path in shared_paths:
+        a, b = _signed_change_lines(a_rep, path), _signed_change_lines(b_rep, path)
+        agree = a_only = b_only = 0
+        sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == "equal":
+                agree += i2 - i1
+            elif tag == "insert":
+                b_only += j2 - j1
+            else:                                  # delete / replace -> A-only
+                a_only += i2 - i1
+        out[path] = {"agree": agree, "a_only": a_only, "b_only": b_only}
+    return out
+
+
+def _scorecard_html(arm: Arm, label: str, card: dict | None) -> str:
+    el = html.escape(label)
+    if card is None:
+        return (f'<div class="scorecard" data-arm="{arm.value}">'
+                f'<span class="sc-arm">{el}</span>'
+                '<span class="sc-empty">no valid runs</span></div>')
+    pills = []
+    for key, _metric, letter in _SCORE_PILLS:
+        st = card[key]
+        if st is None:
+            continue
+        tone = "pass" if st else "fail"
+        pills.append(f'<span class="pill {tone}" title="{key} {tone}">{letter}</span>')
+    turns = card["turns"] if card["turns"] is not None else "?"
+    return (
+        f'<div class="scorecard" data-arm="{arm.value}">'
+        f'<span class="sc-arm">{el}</span>'
+        f'<span class="pills">{"".join(pills)}</span>'
+        f'<span class="sc-stat">{card["files"]} files</span>'
+        f'<span class="sc-stat sc-churn">+{card["add"]} {_MINUS}{card["del"]}</span>'
+        f'<span class="sc-stat">{turns} turns</span>'
+        f'<span class="sc-stat">${card["cost"] or 0:.3f}</span>'
+        '</div>')
+
+
+def _contrast_band_html(results: list[RunResult], cfg: ExperimentConfig,
+                        tid: str, arms: list) -> str:
+    """The verdict-first contrast band prepended inside one task's `.cmp` shell (plan
+    024 §1.6): a scorecard per arm (arm-symmetric), a templated thesis + clickable
+    divergence map over the primary pair, beat captions on each chip, and a small
+    diff-of-diffs summary. Surfaces the verdict before a diff line is read."""
+    esc = html.escape
+    reps = {arm.value: (_shown_runs(results, tid, arm) or [None])[0] for arm in arms}
+    cards = {arm.value: _arm_card(reps[arm.value]) for arm in arms}
+
+    parts = ['<div class="contrast">', '<div class="scorecards">']
+    for arm in arms:
+        parts.append(_scorecard_html(arm, arm_label(cfg, arm), cards[arm.value]))
+    parts.append('</div>')
+
+    a_arm, b_arm = primary_pair(cfg)
+    a_card, b_card = cards.get(a_arm.value), cards.get(b_arm.value)
+    a_label, b_label = arm_label(cfg, a_arm), arm_label(cfg, b_arm)
+    parts.append('<p class="thesis">'
+                 + esc(_thesis_text(a_card, b_card, a_label, b_label)) + '</p>')
+
+    a_rep, b_rep = reps.get(a_arm.value), reps.get(b_arm.value)
+    paths_a = set(a_card["fmeta"]) if a_card else set()
+    paths_b = set(b_card["fmeta"]) if b_card else set()
+    if paths_a or paths_b:
+        cls = _divergence(paths_a, paths_b)
+        dlabel = {"both": "both arms", "skill-only": f"only {a_label}",
+                  "ctrl-only": f"only {b_label}"}
+        parts.append('<div class="divmap" aria-label="files touched, by arm">')
+        for path in sorted(paths_a | paths_b):
+            d = cls[path]
+            src_arm, src_rep, src_card = (
+                (b_arm, b_rep, b_card) if d == "ctrl-only" else (a_arm, a_rep, a_card))
+            m = src_card["fmeta"][path]
+            pid = _run_patch_id(tid, src_arm.value, src_rep.run_index)
+            caption = _beat_caption(path, m["status"], m["add"], m["del"], dlabel[d])
+            parts.append(
+                f'<button type="button" class="chip {d}" '
+                f'data-target="f-{pid}-{m["i"]}" title="{esc(caption)}">'
+                f'{esc(path)}</button>')
+        parts.append('</div>')
+
+        shared = sorted(paths_a & paths_b)
+        dod = _diffofdiffs(a_rep, b_rep, shared)
+        signal = {p: c for p, c in dod.items() if c["a_only"] or c["b_only"]}
+        if signal:
+            parts.append('<div class="dod"><span class="dod-h">what differed between '
+                         'arms <span class="dod-note">(line-level heuristic)</span>'
+                         '</span>')
+            for path, c in signal.items():
+                cap = (f"{path}: {c['agree']} shared change-lines, "
+                       f"{c['a_only']} only in {a_label}, {c['b_only']} only in {b_label}")
+                parts.append(
+                    f'<span class="dod-file" title="{esc(cap)}">{esc(path)} '
+                    f'<span class="dod-n agree">={c["agree"]}</span>'
+                    f'<span class="dod-n a">&#9650;{c["a_only"]}</span>'
+                    f'<span class="dod-n b">&#9660;{c["b_only"]}</span></span>')
+            parts.append('</div>')
+
+    parts.append('</div>')   # .contrast
+    return "".join(parts)
+
+
 def _work_products_html(results: list[RunResult], cfg: ExperimentConfig,
                         arms: list) -> str:
     """Per-task interactive diff comparison -- the `.cmp` shell (plan 024 §1.2). Each
@@ -4799,6 +5131,8 @@ def _work_products_html(results: list[RunResult], cfg: ExperimentConfig,
             f"{len(_shown_runs(results, tid, arm))} {html.escape(arm_label(cfg, arm))}"
             for arm in arms)
         parts.append(f'<div class="cmp" data-task="{et}">')
+        # ---- contrast band (verdict-first, server-side + escaped) -----------
+        parts.append(_contrast_band_html(results, cfg, tid, arms))
         # ---- toolbar -------------------------------------------------------
         parts.append('<div class="cmp-bar">')
         parts.append(f'<div class="cmp-task">{et}<span class="count">{counts}'

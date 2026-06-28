@@ -1083,6 +1083,162 @@ def test_three_arm_report_renders_a_pane_per_arm():
 
 
 # --------------------------------------------------------------------------
+# Contrast band: scorecards + divergence map + beat captions (plan 024 §1.6)
+# --------------------------------------------------------------------------
+
+def test_divergence_classifies_both_skill_only_ctrl_only():
+    # set-compare the primary pair's touched paths: A=treatment ('skill'), B=reference.
+    cls = h._divergence({"a.py", "shared.py"}, {"shared.py", "b.py"})
+    assert cls["shared.py"] == "both"
+    assert cls["a.py"] == "skill-only"          # only the treatment arm A touched it
+    assert cls["b.py"] == "ctrl-only"           # only the reference arm B touched it
+    assert h._divergence(set(), set()) == {}    # nothing touched -> empty map
+
+
+def test_file_category_lookup_table():
+    cases = {
+        "test_parser.py": "tests", "src/foo.test.js": "tests",
+        "README.md": "docs", "docs/guide.md": "docs",
+        "package.json": "manifest", "pyproject.toml": "manifest", "go.mod": "manifest",
+        "poetry.lock": "lockfile", "deps.lock": "lockfile",
+        ".github/workflows/ci.yml": "ci", "Dockerfile": "ci", "deploy.yaml": "ci",
+        "src/parser.py": "source", "main.go": "source",
+    }
+    for path, cat in cases.items():
+        assert h._file_category(path) == cat, path
+
+
+def test_change_shape_lookup_table():
+    assert h._change_shape("A", 40, 0) == "new file"
+    assert h._change_shape("D", 0, 12) == "deleted"
+    assert h._change_shape("R", 1, 1) == "renamed"
+    assert h._change_shape("M", 5, 0) == "pure additions"
+    assert h._change_shape("M", 0, 5) == "pure deletions"
+    assert h._change_shape("M", 30, 20) == "50-line rewrite"   # >= _REWRITE_LINES
+    assert h._change_shape("M", 2, 1) == "targeted edit"
+
+
+def test_beat_caption_is_factual_with_category_shape_churn_and_arm():
+    cap = h._beat_caption("test_parser.py", "A", 40, 0, "only my-skill")
+    for needle in ("tests", "new file", "+40", "only my-skill"):
+        assert needle in cap, needle
+
+
+def _card(tests, add, dele, *, tests_file=False):
+    fm = {"test_x.py": {}} if tests_file else {"x.py": {}}
+    return {"tests": tests, "lint": None, "build": None, "add": add, "del": dele,
+            "turns": 5, "cost": 0.04, "files": len(fm), "fmeta": fm}
+
+
+def test_thesis_template_selection_on_score_and_size_deltas():
+    # A passes tests where B fails -> green-vs-red, and 'test-backed' since A touched a test
+    t = h._thesis_text(_card(True, 7, 2, tests_file=True), _card(False, 1, 1),
+                       "skill", "ctrl")
+    assert "skill" in t and "green" in t and "test-backed" in t
+    # both pass, A meaningfully larger -> larger change
+    assert "larger" in h._thesis_text(_card(True, 30, 0), _card(True, 2, 0),
+                                      "skill", "ctrl")
+    # both pass, within the size margin -> no measurable difference
+    assert h._thesis_text(_card(True, 4, 0), _card(True, 3, 0), "skill", "ctrl") \
+        == "no measurable difference on this task"
+    # only one arm has a run / neither has a run
+    assert "only the" in h._thesis_text(_card(True, 1, 0), None, "skill", "ctrl")
+    assert h._thesis_text(None, None, "s", "c") == "no valid runs to compare on this task"
+
+
+def test_diffofdiffs_counts_agree_a_only_b_only():
+    # both arms delete '-old'; A adds '+new', B adds '+other' -> agree on the delete,
+    # diverge on the add (a replace tagged A-only by the heuristic).
+    ra = _rr(Arm.SKILL_ON, True)
+    rb = _rr(Arm.SKILL_OFF, None)
+    ra.diff = "diff --git a/x.py b/x.py\n@@ -1,1 +1,1 @@\n-old\n+new\n"
+    rb.diff = "diff --git a/x.py b/x.py\n@@ -1,1 +1,1 @@\n-old\n+other\n"
+    dod = h._diffofdiffs(ra, rb, ["x.py"])["x.py"]
+    assert dod["agree"] == 1 and dod["a_only"] == 1 and dod["b_only"] == 0
+    assert h._diffofdiffs(None, None, ["x.py"])["x.py"] == \
+        {"agree": 0, "a_only": 0, "b_only": 0}
+
+
+def _divmap_diffs():
+    """ON touches util.py (both) + test_util.py (skill-only); OFF touches util.py
+    (both, differently) + README.md (ctrl-only) -> one chip of each divergence class."""
+    diff_on = ("diff --git a/util.py b/util.py\n--- a/util.py\n+++ b/util.py\n"
+               "@@ -1,1 +1,1 @@\n-old\n+new\n"
+               "diff --git a/test_util.py b/test_util.py\nnew file mode 100644\n"
+               "--- /dev/null\n+++ b/test_util.py\n@@ -0,0 +1,1 @@\n+def test_x(): pass\n")
+    diff_off = ("diff --git a/util.py b/util.py\n--- a/util.py\n+++ b/util.py\n"
+                "@@ -1,1 +1,1 @@\n-old\n+other\n"
+                "diff --git a/README.md b/README.md\nnew file mode 100644\n"
+                "--- /dev/null\n+++ b/README.md\n@@ -0,0 +1,1 @@\n+docs\n")
+    res = _two_task_results()
+    for r in res:
+        r.diff = diff_on if r.arm is Arm.SKILL_ON else diff_off
+    return res
+
+
+def test_contrast_band_renders_scorecards_divmap_and_resolvable_chip_targets():
+    cfg = _cfg()
+    man = h.experiment_manifest(cfg, timestamp=1.0)
+    doc = h.build_html_report(_divmap_diffs(), h.Preflight(), cfg, man)
+    assert doc.count('class="contrast"') == 2           # one band per task
+    assert doc.count('class="scorecard"') == 4          # 2 arms x 2 tasks
+    for cls in ('class="chip both"', 'class="chip skill-only"',
+                'class="chip ctrl-only"'):
+        assert cls in doc, cls
+    # a diff-of-diffs summary appears for the shared file
+    assert 'class="dod"' in doc
+    # every chip data-target addresses a real rendered file node
+    ids = set(re.findall(r'id="(f-[^"]+)"', doc))
+    targets = re.findall(r'data-target="(f-[^"]+)"', doc)
+    assert targets and all(t in ids for t in targets)
+    # skill-only chip targets the skill_on pane; ctrl-only targets the skill_off pane
+    assert any("skill-on" in t for t in targets)
+    assert any("skill-off" in t for t in targets)
+
+
+def test_contrast_band_escapes_hostile_filename_and_never_uses_data_tip():
+    # LOAD-BEARING (plan 024 §1.4): a hostile path rides the chip via title= (plain-text
+    # native tooltip), NEVER data-tip -- the tooltip wiring assigns data-tip through
+    # innerHTML, so a filename there would re-parse as live markup. The live tag must
+    # not survive; only its escaped form, and the band must carry no data-tip at all.
+    cfg = _cfg()
+    man = h.experiment_manifest(cfg, timestamp=1.0)
+    evil = '"><script>.py'                              # no spaces -> survives the git regex
+    diff = (f"diff --git a/{evil} b/{evil}\n--- a/{evil}\n+++ b/{evil}\n"
+            f"@@ -1,1 +1,1 @@\n-a\n+b\n")
+    doc = h.build_html_report(_results_with_diff(diff), h.Preflight(), cfg, man)
+    assert 'class="contrast"' in doc and 'class="chip' in doc
+    assert '"><script>' not in doc                      # attribute/tag breakout blocked
+    assert "&lt;script&gt;" in doc                       # escaped form present
+    band = doc[doc.index('class="contrast"'):doc.index('class="cmp-bar"')]
+    assert "title=" in band and "data-tip=" not in band
+
+
+def test_contrast_band_is_arm_symmetric_for_three_arms():
+    cfg = _cfg(skill_name="skill-a", skill_b_src=Path("/s/b"), skill_b_name="skill-b")
+    man = h.experiment_manifest(cfg, timestamp=1.0, offline=True)
+    res = _three_arm_results()
+    for r in res:                                       # every arm touches the same file
+        r.diff = "diff --git a/x.py b/x.py\n@@ -1,1 +1,1 @@\n-a\n+b\n"
+    doc = h.build_html_report(res, h.Preflight(), cfg, man)
+    assert 'class="contrast"' in doc and 'class="thesis"' in doc
+    assert doc.count('class="scorecard"') == 6          # 3 arms x 2 tasks
+    for av in ("skill_on", "skill_b", "skill_off"):
+        assert f'<div class="scorecard" data-arm="{av}">' in doc
+
+
+def test_diffviewer_wires_divmap_chip_clicks_escape_safe():
+    cfg = _cfg()
+    man = h.experiment_manifest(cfg, timestamp=1.0)
+    doc = h.build_html_report(_two_task_results(), h.Preflight(), cfg, man)
+    script = re.search(r"<script>(.+?)</script>", doc, re.S).group(1)
+    dv = script[script.index("function DiffViewer("):]
+    assert ".divmap .chip" in dv
+    assert 'getAttribute("data-target")' in dv
+    assert re.search(r"innerHTML\s*=", dv) is None      # never innerHTML of diff text
+
+
+# --------------------------------------------------------------------------
 # Cost / power (plan 006)
 # --------------------------------------------------------------------------
 
