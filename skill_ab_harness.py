@@ -2751,7 +2751,7 @@ _HTML_STYLE = """
     -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
     font-size:var(--text-base); line-height:var(--leading);
   }
-  .wrap{max-width:1080px; margin:0 auto; padding:32px 24px 72px}
+  .wrap{max-width:min(95vw,1800px); margin:0 auto; padding:32px 28px 72px}
   .num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1}
   .mono{font-family:var(--mono)}
   h1,h2,h3{margin:0; letter-spacing:var(--tracking)}

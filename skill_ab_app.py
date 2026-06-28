@@ -79,7 +79,7 @@ _APP_CSS = """
     box-shadow:0 0 0 4px color-mix(in srgb,#d98a15 22%, transparent)}
   .health-dot.bad{background:var(--bad);
     box-shadow:0 0 0 4px color-mix(in srgb,var(--bad) 22%, transparent)}
-  .view{max-width:1080px; width:100%; margin:0 auto; padding:24px 22px 64px}
+  .view{max-width:min(95vw,1800px); width:100%; margin:0 auto; padding:24px 26px 64px}
 
   /* ---------- top-bar usage ticker (live runs) ---------- */
   .ticker{display:flex; align-items:center; gap:9px; font-size:var(--text-sm);
