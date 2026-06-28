@@ -204,10 +204,10 @@ def test_cross_origin_post_403():
         assert st == 403
 
 
-def test_x_frame_options_is_sameorigin_so_results_can_iframe_its_report():
-    # The Results view frames /api/runs/<id>/report (same origin). DENY would block the
-    # app from rendering its own report; SAMEORIGIN allows it but still blocks foreign
-    # framing (clickjacking). Regression guard for the "Refused to display in a frame".
+def test_x_frame_options_is_deny_no_framing_anywhere():
+    # The app no longer embeds anything in an <iframe> (Results/Gallery link out to the
+    # report/gallery as top-level pages), so the strictest DENY applies -- no page,
+    # foreign or same-origin, may frame the token-bearing control plane (clickjacking).
     with _serve() as (port, _):
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
         conn.request("GET", "/", headers={"X-Skill-AB-Token": TOKEN})
@@ -215,7 +215,7 @@ def test_x_frame_options_is_sameorigin_so_results_can_iframe_its_report():
         xfo = resp.getheader("X-Frame-Options")
         resp.read()
         conn.close()
-        assert xfo == "SAMEORIGIN", xfo
+        assert xfo == "DENY", xfo
 
 
 # --------------------------------------------------------------------------

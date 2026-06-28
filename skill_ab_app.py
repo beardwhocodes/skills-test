@@ -288,9 +288,7 @@ _APP_CSS = """
   .done-cta{display:flex; gap:11px; align-items:center; flex-wrap:wrap;
     margin-top:2px}
 
-  /* ---------- results / gallery iframes ---------- */
-  .frame{width:100%; height:80vh; border:1px solid var(--line);
-    border-radius:var(--radius); background:var(--card); box-shadow:var(--shadow)}
+  /* ---------- results / gallery ---------- */
   .back-link{display:inline-flex; align-items:center; gap:6px; font-size:var(--text-sm);
     color:var(--muted); text-decoration:none; font-weight:var(--fw-normal); margin-bottom:8px}
   .back-link:hover{color:var(--ink)}
@@ -338,11 +336,6 @@ _APP_CSS = """
   details.advanced > summary:focus-visible{outline:none;
     box-shadow:0 0 0 3px var(--accent-ring)}
   .adv-body{display:grid; gap:16px; padding:16px 15px}
-
-  /* ---------- results: framed report loading overlay ---------- */
-  .frame-box{position:relative}
-  .frame-overlay{position:absolute; inset:0; display:grid; place-items:center;
-    background:var(--card); border-radius:var(--radius)}
 
   /* ---------- live: progress + elapsed ---------- */
   .prog{display:flex; align-items:center; gap:12px; margin:2px 0 10px;
@@ -1348,12 +1341,6 @@ _APP_JS = r"""
   function viewResults(id){
     var reportUrl = "/api/runs/" + encodeURIComponent(id) + "/report";
     var badgeUrl = "/api/runs/" + encodeURIComponent(id) + "/badge";
-    var reportTimer = null;
-    // Set early so navigating away always clears the load-timeout, even if the
-    // /api/runs status probe is still in flight.
-    cleanup = function(){
-      if(reportTimer){ clearTimeout(reportTimer); reportTimer = null; }
-    };
     view.appendChild(E("a", {class:"back-link", href:"#/"}, "← Dashboard"));
     view.appendChild(E("div", {class:"sec-h"}, [
       E("h2", {text:"Results"}),
@@ -1363,10 +1350,9 @@ _APP_JS = r"""
     view.appendChild(slot);
     slot.appendChild(loadingEl("loading results…"));
 
-    // GUARD (plan 024 §3.1): error/aborted runs never wrote report.html, so the old
-    // unconditional iframe rendered the report endpoint's 404 JSON. Read the run's
-    // status from the existing token-gated /api/runs list and only frame a `done`
-    // run; everything else gets an error card (no new server endpoint needed).
+    // Read the run's status from the existing token-gated /api/runs list: only a
+    // `done` run has a report to link to; error/aborted/running/missing each get a
+    // tailored card instead. (No new server endpoint needed.)
     api("/api/runs").then(function(d){
       var runs = (d && d.runs) || [];
       var card = null;
@@ -1380,36 +1366,28 @@ _APP_JS = r"""
         renderUnavailable(status);
       } else { renderUnavailable("missing"); }
     }).catch(function(){
-      // Couldn't read the list — frame the report anyway; the iframe
-      // onerror/timeout fallback below catches a genuine failure.
+      // Couldn't read the list — show the summary + report link anyway.
       renderReport(null);
     });
 
     function renderReport(card){
       clear(slot);
-      // Item 5: verdict headline above the frame (skillTitle + verdictPill +
-      // primary-metric delta); the badge block is demoted to a collapsed section.
+      // A NATIVE results summary (verdict headline + metric delta + validity) and a
+      // link to the full self-contained report, opened as its OWN page. No iframe:
+      // no nested scroll, no X-Frame coupling, no width-coordination -- the report
+      // stays the standalone artifact, just linked rather than embedded.
       var headBox = E("div", {class:"card card-pad", style:"margin-bottom:14px"});
       slot.appendChild(headBox);
       renderHeadline(headBox, card);
+      headBox.appendChild(E("div", {class:"row", style:"margin-top:18px; gap:10px"}, [
+        E("a", {class:"btn btn-primary", href:withTok(reportUrl),
+          target:"_blank", rel:"noopener"}, "Open full report →"),
+        E("a", {class:"btn", href:"#/"}, "Back to Dashboard")
+      ]));
       slot.appendChild(badgeSection(card));
-      // Item 6: loading overlay over the frame until `load` fires; item 1: an
-      // onerror/timeout fallback to the error card if the report never renders.
-      var overlay = E("div", {class:"frame-overlay"},
-        loadingEl("loading report…"));
-      var frame = E("iframe", {class:"frame", src:withTok(reportUrl),
-        title:"run report", loading:"lazy"});
-      var settled = false;
-      function settle(ok){
-        if(settled) return; settled = true;
-        if(reportTimer){ clearTimeout(reportTimer); reportTimer = null; }
-        if(overlay.parentNode) overlay.remove();
-        if(!ok) renderUnavailable("error");
-      }
-      frame.addEventListener("load", function(){ settle(true); });
-      frame.addEventListener("error", function(){ settle(false); });
-      reportTimer = setTimeout(function(){ if(!settled) settle(false); }, 20000);
-      slot.appendChild(E("div", {class:"frame-box"}, [frame, overlay]));
+      slot.appendChild(E("p", {class:"hint", style:"margin-top:12px",
+        text:"The full report — interactive diffs, per-arm charts, the treatment "
+          + "panel, and the blind-judge panel — opens in a new tab."}));
     }
 
     function renderHeadline(box, card){
@@ -1421,19 +1399,29 @@ _APP_JS = r"""
         verdictPill(card.verdict || "inconclusive")
       ]));
       var deltaEl = E("div", {class:"hint", style:"margin-top:9px"});
+      var validEl = E("div", {class:"hint", style:"margin-top:5px"});
       box.appendChild(deltaEl);
-      // The card carries skill names + verdict; the point delta lives in
+      box.appendChild(validEl);
+      // The card carries skill names + verdict; the point delta + validity live in
       // summary.json (existing token-gated /summary), fetched here for the headline.
       api("/api/runs/" + encodeURIComponent(id) + "/summary").then(function(sm){
         var metric = sm && sm.primary_metric;
         var est = (sm && sm.itt && metric) ? sm.itt[metric] : null;
-        if(!est || est.point == null){ deltaEl.remove(); return; }
-        clear(deltaEl);
-        deltaEl.appendChild(E("b", {style:"color:var(--ink-2)",
-          text:metric + " "}));
-        deltaEl.appendChild(document.createTextNode(
-          signedPct(est.point) + ci95(est) + " · intention-to-treat"));
-      }).catch(function(){ deltaEl.remove(); });
+        if(!est || est.point == null){ deltaEl.remove(); }
+        else {
+          clear(deltaEl);
+          deltaEl.appendChild(E("b", {style:"color:var(--ink-2)", text:metric + " "}));
+          deltaEl.appendChild(document.createTextNode(
+            signedPct(est.point) + ci95(est) + " · intention-to-treat"));
+        }
+        var v = sm && sm.validity;
+        if(v){
+          validEl.textContent = "valid runs: "
+            + (v.on_valid != null ? v.on_valid : "—") + " skill · "
+            + (v.off_valid != null ? v.off_valid : "—") + " control"
+            + (v.off_contaminated ? " · " + v.off_contaminated + " contaminated" : "");
+        } else { validEl.remove(); }
+      }).catch(function(){ deltaEl.remove(); validEl.remove(); });
     }
 
     function badgeSection(card){
@@ -1530,8 +1518,15 @@ _APP_JS = r"""
       E("h2", {text:"Gallery"}),
       E("span", {class:"hint", text:"self-reported summaries across all runs"})
     ]));
-    view.appendChild(E("iframe", {class:"frame",
-      src:withTok("/api/gallery"), title:"gallery", loading:"lazy"}));
+    view.appendChild(E("div", {class:"card card-pad"}, [
+      E("p", {class:"hint", style:"max-width:62ch; line-height:1.62",
+        text:"A static index of self-reported, unverified run summaries — the same "
+          + "shareable page skill-ab generates. It opens as its own full page."}),
+      E("div", {class:"row", style:"margin-top:15px"}, [
+        E("a", {class:"btn btn-primary", href:withTok("/api/gallery"),
+          target:"_blank", rel:"noopener"}, "Open the gallery →")
+      ])
+    ]));
   }
 
   // ===================== SETTINGS / HEALTH =====================
