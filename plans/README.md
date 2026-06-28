@@ -49,6 +49,7 @@ fully before starting, honor its STOP conditions, and update your row when done.
 | 021 | `skill-ab serve` — local web app (subscription, live streaming, secured) | P1 | L | — | DONE |
 | 022 | SPIKE→prototype: pluggable CLI runner (claude vs codex vs any CLI) | P2 | M | 021, per-arm models | DONE |
 | 023 | Optional total-spend ceiling in the serve UI (stop starting runs past ~$N) | P2 | M | 021 | DONE |
+| 024 | UX upgrade: interactive diff viewer (centerpiece) + treatment panel + guided flows + visual polish | P1 | L | 021 | IN PROGRESS |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED
 (one-line rationale).
