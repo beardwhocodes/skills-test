@@ -79,10 +79,11 @@ _APP_CSS = """
     box-shadow:0 0 0 4px color-mix(in srgb,#d98a15 22%, transparent)}
   .health-dot.bad{background:var(--bad);
     box-shadow:0 0 0 4px color-mix(in srgb,var(--bad) 22%, transparent)}
-  /* App chrome (dashboard / forms / settings / results-summary) gets a comfortable
-     CENTERED width -- full-width makes these sparse on a wide screen. The full report
-     (its own page) keeps the wide _HTML_STYLE `.wrap`; it's the content that wants room. */
-  .view{max-width:1280px; width:100%; margin:0 auto; padding:26px 28px 72px}
+  /* App chrome (dashboard / forms / settings / results) is CHROME, not wide content:
+     a comfortable centered column. A wider view just strands the section-header actions
+     far right and isolates a lone card at the left. The full REPORT is the wide content,
+     and it opens in its own tab (keeping _HTML_STYLE's wide `.wrap`). */
+  .view{max-width:1080px; width:100%; margin:0 auto; padding:26px 28px 72px}
 
   /* ---------- top-bar usage ticker (live runs) ---------- */
   .ticker{display:flex; align-items:center; gap:9px; font-size:var(--text-sm);
