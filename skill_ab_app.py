@@ -39,22 +39,22 @@ _APP_CSS = """
       border-bottom:1px solid var(--line)}
   }
   .brand{display:flex; align-items:center; gap:10px; padding:4px 6px 16px}
-  .brand .glyph{width:32px; height:32px; border-radius:9px; flex:0 0 auto;
-    background:linear-gradient(135deg,#1f77b4,#5aa9dd); display:grid;
+  .brand .glyph{width:32px; height:32px; border-radius:var(--radius-sm); flex:0 0 auto;
+    background:linear-gradient(135deg,var(--accent),var(--accent-600)); display:grid;
     place-items:center; box-shadow:var(--shadow-sm)}
-  .brand .bn{font-weight:680; font-size:15px; letter-spacing:-.01em}
-  .brand .bt{font-size:10px; color:var(--muted); font-weight:650;
+  .brand .bn{font-weight:var(--fw-bold); font-size:var(--text-md); letter-spacing:-.01em}
+  .brand .bt{font-size:var(--text-xs); color:var(--muted); font-weight:var(--fw-medium);
     letter-spacing:.10em; text-transform:uppercase; margin-top:1px}
   .nav{display:flex; flex-direction:column; gap:2px}
   .nav a{display:flex; align-items:center; gap:11px; padding:9px 11px;
-    border-radius:10px; color:var(--ink-2); text-decoration:none;
-    font-size:13.5px; font-weight:560}
+    border-radius:var(--radius-sm); color:var(--ink-2); text-decoration:none;
+    font-size:var(--text-base); font-weight:var(--fw-normal)}
   .nav a:hover{background:var(--card-2); color:var(--ink)}
-  .nav a.active{color:var(--ink); font-weight:650;
-    background:color-mix(in srgb,#1f77b4 14%, transparent)}
+  .nav a.active{color:var(--ink); font-weight:var(--fw-medium);
+    background:color-mix(in srgb,var(--accent) 14%, transparent)}
   .nav a .ic{flex:0 0 auto; color:var(--muted)}
-  .nav a.active .ic{color:#1f77b4}
-  .side-foot{margin-top:auto; font-size:11px; color:var(--faint);
+  .nav a.active .ic{color:var(--accent)}
+  .side-foot{margin-top:auto; font-size:var(--text-xs); color:var(--faint);
     line-height:1.55; padding:16px 8px 2px}
 
   .main{display:flex; flex-direction:column; min-width:0}
@@ -63,10 +63,10 @@ _APP_CSS = """
     position:sticky; top:0; z-index:5;
     background:color-mix(in srgb,var(--card) 84%, transparent);
     backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px)}
-  .appbar-title{font-size:16px; font-weight:680; letter-spacing:-.01em}
+  .appbar-title{font-size:var(--text-md); font-weight:var(--fw-bold); letter-spacing:-.01em}
   .appbar-right{display:flex; align-items:center; gap:18px}
-  .health{display:flex; align-items:center; gap:7px; font-size:12px;
-    color:var(--muted); font-weight:560}
+  .health{display:flex; align-items:center; gap:7px; font-size:var(--text-sm);
+    color:var(--muted); font-weight:var(--fw-normal)}
   .health-dot{width:9px; height:9px; border-radius:50%; background:var(--faint);
     box-shadow:0 0 0 4px color-mix(in srgb,var(--faint) 20%, transparent)}
   .health-dot.ok{background:var(--good);
@@ -78,33 +78,33 @@ _APP_CSS = """
   .view{max-width:1080px; width:100%; margin:0 auto; padding:24px 22px 64px}
 
   /* ---------- top-bar usage ticker (live runs) ---------- */
-  .ticker{display:flex; align-items:center; gap:9px; font-size:12px;
+  .ticker{display:flex; align-items:center; gap:9px; font-size:var(--text-sm);
     color:var(--ink-2)}
-  .ticker .tk-cap{color:var(--muted); font-weight:650}
+  .ticker .tk-cap{color:var(--muted); font-weight:var(--fw-medium)}
   .ticker .tk-bar{width:80px; height:7px; border-radius:5px;
     background:var(--grid); overflow:hidden}
   .ticker .tk-fill{height:100%; width:0%;
-    background:linear-gradient(90deg,#1f77b4,#5aa9dd);
+    background:linear-gradient(90deg,var(--accent),var(--accent-300));
     transition:width .3s ease}
-  .ticker .num{font-weight:650; color:var(--ink);
+  .ticker .num{font-weight:var(--fw-medium); color:var(--ink);
     font-variant-numeric:tabular-nums}
 
   /* ---------- buttons ---------- */
-  .btn{font-family:var(--sans); font-size:13px; font-weight:620;
+  .btn{font-family:var(--sans); font-size:var(--text-sm); font-weight:var(--fw-medium);
     color:var(--ink); background:var(--card); border:1px solid var(--line-2);
-    border-radius:10px; padding:9px 15px; cursor:pointer; gap:8px;
+    border-radius:var(--radius-sm); padding:9px 15px; cursor:pointer; gap:8px;
     box-shadow:var(--shadow-sm); display:inline-flex; align-items:center;
-    transition:transform .1s ease, box-shadow .12s ease}
+    transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease)}
   .btn:hover{transform:translateY(-1px); box-shadow:var(--shadow)}
-  .btn:active{transform:translateY(0)}
+  .btn:active{transform:translateY(0) scale(.997)}
   .btn:disabled{opacity:.5; cursor:not-allowed; transform:none;
     box-shadow:var(--shadow-sm)}
   .btn:focus-visible{outline:none;
-    box-shadow:0 0 0 3px color-mix(in srgb,#1f77b4 30%, transparent)}
-  .btn-primary{color:#fff; border-color:#1f77b4;
-    background:linear-gradient(135deg,#1f77b4,#3f93cf)}
+    box-shadow:0 0 0 3px var(--accent-ring)}
+  .btn-primary{color:#fff; border-color:var(--accent);
+    background:linear-gradient(135deg,var(--accent),var(--accent-600))}
   .btn-primary:hover{box-shadow:0 8px 22px
-    color-mix(in srgb,#1f77b4 32%, transparent)}
+    color-mix(in srgb,var(--accent) 32%, transparent)}
   .btn-danger{color:var(--bad); background:var(--bad-bg);
     border-color:var(--bad-line)}
   .btn-ghost{background:transparent; box-shadow:none}
@@ -113,15 +113,15 @@ _APP_CSS = """
   /* ---------- forms ---------- */
   .form{display:grid; gap:16px; max-width:580px}
   .field{display:grid; gap:6px}
-  .field label{font-size:12.5px; font-weight:620; color:var(--ink-2)}
-  .field .hint{font-size:11.5px; color:var(--muted); font-weight:500}
-  .src-hint{display:block; font-size:11px; font-weight:600; margin-top:5px}
+  .field label{font-size:var(--text-sm); font-weight:var(--fw-medium); color:var(--ink-2)}
+  .field .hint{font-size:var(--text-xs); color:var(--muted); font-weight:var(--fw-normal)}
+  .src-hint{display:block; font-size:var(--text-xs); font-weight:var(--fw-medium); margin-top:5px}
   .src-ok{color:var(--good)} .src-warn{color:var(--muted)}
-  .inp{font-family:var(--sans); font-size:13.5px; color:var(--ink);
-    background:var(--card); border:1px solid var(--line-2); border-radius:10px;
+  .inp{font-family:var(--sans); font-size:var(--text-base); color:var(--ink);
+    background:var(--card); border:1px solid var(--line-2); border-radius:var(--radius-sm);
     padding:10px 12px; width:100%; box-shadow:var(--shadow-sm)}
-  .inp:focus{outline:none; border-color:#1f77b4;
-    box-shadow:0 0 0 3px color-mix(in srgb,#1f77b4 22%, transparent)}
+  .inp:focus{outline:none; border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-ring)}
   select.inp{appearance:none; -webkit-appearance:none; cursor:pointer;
     padding-right:34px; background-repeat:no-repeat;
     background-image:
@@ -131,23 +131,23 @@ _APP_CSS = """
     background-size:5px 5px,5px 5px}
   .field-row{display:flex; gap:14px; flex-wrap:wrap}
   .field-row .field{flex:1; min-width:170px}
-  input[type=range]{width:100%; accent-color:#1f77b4}
+  input[type=range]{width:100%; accent-color:var(--accent)}
   .krow{display:flex; align-items:center; gap:13px}
-  .kval{font-variant-numeric:tabular-nums; font-weight:680; font-size:16px;
+  .kval{font-variant-numeric:tabular-nums; font-weight:var(--fw-bold); font-size:var(--text-md);
     min-width:24px; text-align:center}
   .switch{display:inline-flex; align-items:center; gap:11px; cursor:pointer;
     position:relative}
   .switch input{position:absolute; opacity:0; width:0; height:0}
-  .switch .track{width:40px; height:23px; border-radius:999px;
+  .switch .track{width:40px; height:23px; border-radius:var(--radius-pill);
     background:var(--grid); border:1px solid var(--line-2);
     position:relative; transition:background .15s ease}
   .switch .knob{position:absolute; top:2px; left:2px; width:17px; height:17px;
     border-radius:50%; background:#fff; box-shadow:var(--shadow-sm);
     transition:transform .15s ease}
-  .switch input:checked + .track{background:#1f77b4; border-color:#1f77b4}
+  .switch input:checked + .track{background:var(--accent); border-color:var(--accent)}
   .switch input:checked + .track .knob{transform:translateX(17px)}
   .switch input:focus-visible + .track{
-    box-shadow:0 0 0 3px color-mix(in srgb,#1f77b4 30%, transparent)}
+    box-shadow:0 0 0 3px var(--accent-ring)}
 
   /* ---------- run cards / grid ---------- */
   .card-pad{padding:20px 22px}
@@ -155,23 +155,24 @@ _APP_CSS = """
     grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
   .run-card{display:flex; flex-direction:column; gap:11px; cursor:pointer;
     padding:16px 16px 14px; text-align:left; color:inherit;
-    transition:transform .14s ease, box-shadow .14s ease}
+    transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease)}
   .run-card:hover{transform:translateY(-2px); box-shadow:var(--shadow-lg)}
+  .run-card:active{transform:translateY(0) scale(.997)}
   .run-card .rc-top{display:flex; align-items:center; gap:8px;
     justify-content:space-between}
-  .run-card .rc-title{font-family:var(--mono); font-size:13px; font-weight:600;
+  .run-card .rc-title{font-family:var(--mono); font-size:var(--text-sm); font-weight:var(--fw-medium);
     color:var(--ink); overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap}
-  .run-card .rc-title .vs{color:var(--faint); font-weight:500; padding:0 .3em}
+  .run-card .rc-title .vs{color:var(--faint); font-weight:var(--fw-normal); padding:0 .3em}
   .run-card .badge-wrap{min-height:20px}
   .run-card .badge-wrap img{display:block; height:20px; max-width:100%}
   .run-card .rc-meta{display:flex; flex-wrap:wrap; gap:6px 14px;
-    font-size:11.5px; color:var(--muted)}
-  .run-card .rc-meta b{color:var(--ink-2); font-weight:620}
+    font-size:var(--text-xs); color:var(--muted)}
+  .run-card .rc-meta b{color:var(--ink-2); font-weight:var(--fw-medium)}
 
   /* ---------- pills ---------- */
-  .pill{display:inline-flex; align-items:center; gap:6px; font-size:11px;
-    font-weight:680; letter-spacing:.02em; padding:3px 9px; border-radius:999px;
+  .pill{display:inline-flex; align-items:center; gap:6px; font-size:var(--text-xs);
+    font-weight:var(--fw-bold); letter-spacing:.02em; padding:3px 9px; border-radius:var(--radius-pill);
     border:1px solid var(--line-2); background:var(--pill-grey-bg);
     color:var(--pill-grey-ink); white-space:nowrap}
   .pill .dot{width:6px; height:6px; border-radius:50%; background:currentColor}
@@ -179,11 +180,11 @@ _APP_CSS = """
     border-color:var(--good-line)}
   .pill.bad{color:var(--bad); background:var(--bad-bg);
     border-color:var(--bad-line)}
-  .pill.run{color:#1f77b4; border-color:color-mix(in srgb,#1f77b4 30%,
-    transparent); background:color-mix(in srgb,#1f77b4 12%, transparent)}
-  .demo-badge{display:inline-flex; align-items:center; gap:6px; font-size:11px;
-    font-weight:700; letter-spacing:.03em; color:#7a5800; background:#fff3d6;
-    border:1px solid #f0d488; border-radius:7px; padding:3px 9px}
+  .pill.run{color:var(--accent-ink); border-color:color-mix(in srgb,var(--accent) 30%,
+    transparent); background:color-mix(in srgb,var(--accent) 12%, transparent)}
+  .demo-badge{display:inline-flex; align-items:center; gap:6px; font-size:var(--text-xs);
+    font-weight:var(--fw-bold); letter-spacing:.03em; color:#7a5800; background:#fff3d6;
+    border:1px solid #f0d488; border-radius:var(--radius-xs); padding:3px 9px}
   @media (prefers-color-scheme:dark){
     .demo-badge{color:#f0c869; background:#2a2310; border-color:#5a4a1f}
   }
@@ -191,23 +192,23 @@ _APP_CSS = """
   /* ---------- generic blocks ---------- */
   .sec-h{display:flex; align-items:baseline; justify-content:space-between;
     gap:12px; margin:4px 2px 14px}
-  .sec-h h2{font-size:17px; font-weight:680; letter-spacing:-.01em}
-  .sec-h .hint{font-size:12px; color:var(--muted)}
+  .sec-h h2{font-size:var(--text-md); font-weight:var(--fw-bold); letter-spacing:-.01em}
+  .sec-h .hint{font-size:var(--text-sm); color:var(--muted)}
   .empty-state{display:grid; place-items:center; gap:14px; text-align:center;
     padding:54px 24px}
-  .empty-state .es-ic{width:46px; height:46px; border-radius:13px;
+  .empty-state .es-ic{width:46px; height:46px; border-radius:var(--radius);
     display:grid; place-items:center; color:var(--muted);
     background:var(--card-2); border:1px solid var(--line)}
-  .empty-state h3{font-size:16px; font-weight:660}
-  .empty-state p{color:var(--muted); font-size:13px; max-width:44ch; margin:0}
+  .empty-state h3{font-size:var(--text-md); font-weight:var(--fw-medium)}
+  .empty-state p{color:var(--muted); font-size:var(--text-sm); max-width:44ch; margin:0}
   .note-card{background:var(--card-2); border:1px solid var(--line);
-    border-radius:12px; padding:13px 15px; font-size:12.5px; color:var(--ink-2);
+    border-radius:var(--radius); padding:13px 15px; font-size:var(--text-sm); color:var(--ink-2);
     line-height:1.6}
   .note-card b{color:var(--ink)}
   .loading{display:flex; align-items:center; gap:10px; color:var(--muted);
-    font-size:13px; padding:30px 4px}
+    font-size:var(--text-sm); padding:30px 4px}
   .spin{display:inline-block; width:15px; height:15px; border-radius:50%;
-    border:2px solid var(--line-2); border-top-color:#1f77b4;
+    border:2px solid var(--line-2); border-top-color:var(--accent);
     animation:rot .7s linear infinite}
   @keyframes rot{to{transform:rotate(360deg)}}
 
@@ -217,32 +218,32 @@ _APP_CSS = """
   .est-grid{display:grid; gap:12px;
     grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
   .est-cell{background:var(--card-2); border:1px solid var(--line);
-    border-radius:11px; padding:12px 13px}
-  .est-cell .ec-cap{font-size:10.5px; font-weight:650; letter-spacing:.06em;
+    border-radius:var(--radius-sm); padding:12px 13px}
+  .est-cell .ec-cap{font-size:var(--text-xs); font-weight:var(--fw-medium); letter-spacing:.06em;
     text-transform:uppercase; color:var(--muted)}
-  .est-cell .ec-val{font-size:21px; font-weight:720; letter-spacing:-.02em;
+  .est-cell .ec-val{font-size:var(--text-lg); font-weight:var(--fw-bold); letter-spacing:-.02em;
     margin-top:5px; font-variant-numeric:tabular-nums}
-  .est-cell .ec-sub{font-size:11px; color:var(--muted); margin-top:2px}
+  .est-cell .ec-sub{font-size:var(--text-xs); color:var(--muted); margin-top:2px}
 
   /* ---------- live run ---------- */
   .live-head{display:flex; align-items:center; justify-content:space-between;
     gap:12px; flex-wrap:wrap; margin-bottom:6px}
-  .live-id{font-family:var(--mono); font-size:11.5px; color:var(--muted)}
+  .live-id{font-family:var(--mono); font-size:var(--text-xs); color:var(--muted)}
   .cell-grid{display:grid; gap:8px;
     grid-template-columns:repeat(auto-fill,minmax(134px,1fr))}
-  .cell{border:1px solid var(--line-2); border-radius:10px; padding:10px 11px;
+  .cell{border:1px solid var(--line-2); border-radius:var(--radius-sm); padding:10px 11px;
     background:var(--card-2); display:grid; gap:5px; min-height:56px;
     overflow:hidden; transition:background .2s ease, border-color .2s ease}
-  .cell .c-lab{font-family:var(--mono); font-size:11px; font-weight:600;
+  .cell .c-lab{font-family:var(--mono); font-size:var(--text-xs); font-weight:var(--fw-medium);
     color:var(--ink-2); overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap}
-  .cell .c-st{font-size:10px; font-weight:680; letter-spacing:.04em;
+  .cell .c-st{font-size:var(--text-xs); font-weight:var(--fw-bold); letter-spacing:.04em;
     color:var(--muted); text-transform:uppercase}
-  .cell.running{border-color:color-mix(in srgb,#1f77b4 45%, var(--line-2));
-    background:color-mix(in srgb,#1f77b4 9%, var(--card-2))}
-  .cell.running .c-st{color:#1f77b4}
+  .cell.running{border-color:color-mix(in srgb,var(--accent) 45%, var(--line-2));
+    background:color-mix(in srgb,var(--accent) 9%, var(--card-2))}
+  .cell.running .c-st{color:var(--accent-ink)}
   .cell.running::after{content:""; height:2px; border-radius:2px;
-    background:linear-gradient(90deg,transparent,#1f77b4,transparent);
+    background:linear-gradient(90deg,transparent,var(--accent),transparent);
     background-size:200% 100%; animation:scan 1.1s linear infinite}
   @keyframes scan{0%{background-position:200% 0}100%{background-position:-200% 0}}
   .cell.valid{border-color:var(--good-line); background:var(--good-bg)}
@@ -258,20 +259,20 @@ _APP_CSS = """
     .cell.contaminated .c-st{color:#f0c869}
   }
   .legend-row{display:flex; gap:15px; flex-wrap:wrap; margin-top:11px;
-    font-size:11px; color:var(--muted)}
+    font-size:var(--text-xs); color:var(--muted)}
   .legend-row .lg{display:inline-flex; align-items:center; gap:6px}
   .legend-row .sw{width:10px; height:10px; border-radius:3px;
     border:1px solid var(--line-2)}
 
-  .console{font-family:var(--mono); font-size:11.5px; line-height:1.55;
-    background:var(--card-2); border:1px solid var(--line); border-radius:12px;
+  .console{font-family:var(--mono); font-size:var(--text-xs); line-height:1.55;
+    background:var(--card-2); border:1px solid var(--line); border-radius:var(--radius);
     padding:10px 12px; max-height:340px; overflow:auto; margin-top:4px}
   .cline{padding:2px 0 2px 9px; margin:3px 0; border-left:3px solid var(--line);
     color:var(--ink-2); white-space:pre-wrap; word-break:break-word}
-  .cline .lab{font-weight:680; margin-right:7px}
+  .cline .lab{font-weight:var(--fw-bold); margin-right:7px}
   .cline .tool{color:var(--muted)}
   .cline.sys{border-left-color:var(--line); color:var(--muted)}
-  .lab-0{border-left-color:#1f77b4} .lab-0 .lab{color:#1f77b4}
+  .lab-0{border-left-color:var(--accent)} .lab-0 .lab{color:var(--accent)}
   .lab-1{border-left-color:#2ca02c} .lab-1 .lab{color:#2ca02c}
   .lab-2{border-left-color:#ff7f0e} .lab-2 .lab{color:#ff7f0e}
   .lab-3{border-left-color:#9467bd} .lab-3 .lab{color:#9467bd}
@@ -283,28 +284,28 @@ _APP_CSS = """
 
   /* ---------- results / gallery iframes ---------- */
   .frame{width:100%; height:80vh; border:1px solid var(--line);
-    border-radius:14px; background:var(--card); box-shadow:var(--shadow)}
-  .back-link{display:inline-flex; align-items:center; gap:6px; font-size:12.5px;
-    color:var(--muted); text-decoration:none; font-weight:560; margin-bottom:8px}
+    border-radius:var(--radius); background:var(--card); box-shadow:var(--shadow)}
+  .back-link{display:inline-flex; align-items:center; gap:6px; font-size:var(--text-sm);
+    color:var(--muted); text-decoration:none; font-weight:var(--fw-normal); margin-bottom:8px}
   .back-link:hover{color:var(--ink)}
-  .md-box{font-family:var(--mono); font-size:11.5px; color:var(--ink-2);
-    background:var(--card-2); border:1px solid var(--line); border-radius:9px;
+  .md-box{font-family:var(--mono); font-size:var(--text-xs); color:var(--ink-2);
+    background:var(--card-2); border:1px solid var(--line); border-radius:var(--radius-sm);
     padding:9px 11px; word-break:break-all; margin-top:8px}
 
   /* ---------- settings ---------- */
   .kv{display:grid; grid-template-columns:170px 1fr; gap:11px 16px;
-    font-size:13px}
-  .kv dt{color:var(--muted); font-weight:600}
+    font-size:var(--text-sm)}
+  .kv dt{color:var(--muted); font-weight:var(--fw-medium)}
   .kv dd{margin:0; color:var(--ink); word-break:break-word;
     font-variant-numeric:tabular-nums}
-  .kv dd.mono{font-family:var(--mono); font-size:12px}
+  .kv dd.mono{font-family:var(--mono); font-size:var(--text-sm)}
 
   /* ---------- toasts ---------- */
   .toasts{position:fixed; right:18px; bottom:18px; z-index:60; display:flex;
     flex-direction:column; gap:8px; max-width:340px}
   .toast{background:var(--card); border:1px solid var(--line-2);
-    border-radius:11px; box-shadow:var(--shadow-lg); padding:11px 14px;
-    font-size:12.5px; color:var(--ink-2); animation:rise .18s ease}
+    border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); padding:11px 14px;
+    font-size:var(--text-sm); color:var(--ink-2); animation:rise .18s ease}
   .toast.err{border-color:var(--bad-line); color:var(--bad)}
   @keyframes rise{from{opacity:0; transform:translateY(6px)}
     to{opacity:1; transform:translateY(0)}}
@@ -312,52 +313,63 @@ _APP_CSS = """
   /* ---------- new-run: advanced disclosure + inline validation ---------- */
   .note-card.warn{background:var(--bad-bg); border-color:var(--bad-line);
     color:var(--bad)}
-  .req{color:var(--bad); margin-left:3px; font-weight:700}
-  .field-error{font-size:11.5px; font-weight:600; color:var(--bad)}
+  .req{color:var(--bad); margin-left:3px; font-weight:var(--fw-bold)}
+  .field-error{font-size:var(--text-xs); font-weight:var(--fw-medium); color:var(--bad)}
   .field-error:empty{display:none}
   .inp[aria-invalid=true]{border-color:var(--bad-line)}
   .inp[aria-invalid=true]:focus{
     box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 22%, transparent)}
-  details.advanced{border:1px solid var(--line); border-radius:12px;
+  details.advanced{border:1px solid var(--line); border-radius:var(--radius);
     background:var(--card-2)}
-  details.advanced > summary{cursor:pointer; padding:12px 15px; font-size:13px;
-    font-weight:620; color:var(--ink-2); list-style:none; display:flex;
+  details.advanced > summary{cursor:pointer; padding:12px 15px; font-size:var(--text-sm);
+    font-weight:var(--fw-medium); color:var(--ink-2); list-style:none; display:flex;
     align-items:center; gap:8px}
   details.advanced > summary::-webkit-details-marker{display:none}
   details.advanced > summary::before{content:"\\25B8"; color:var(--muted);
-    font-size:11px; transition:transform .15s ease}
+    font-size:var(--text-xs); transition:transform .15s ease}
   details.advanced[open] > summary::before{transform:rotate(90deg)}
   details.advanced[open] > summary{border-bottom:1px solid var(--line)}
   details.advanced > summary:focus-visible{outline:none;
-    box-shadow:0 0 0 3px color-mix(in srgb,#1f77b4 30%, transparent)}
+    box-shadow:0 0 0 3px var(--accent-ring)}
   .adv-body{display:grid; gap:16px; padding:16px 15px}
 
   /* ---------- results: framed report loading overlay ---------- */
   .frame-box{position:relative}
   .frame-overlay{position:absolute; inset:0; display:grid; place-items:center;
-    background:var(--card); border-radius:14px}
+    background:var(--card); border-radius:var(--radius)}
 
   /* ---------- live: progress + elapsed ---------- */
   .prog{display:flex; align-items:center; gap:12px; margin:2px 0 10px;
-    font-size:12px; color:var(--ink-2)}
+    font-size:var(--text-sm); color:var(--ink-2)}
   .prog-bar{flex:1; min-width:120px; height:8px; border-radius:5px;
     background:var(--grid); overflow:hidden}
   .prog-fill{height:100%; width:0%; transition:width .3s ease;
-    background:linear-gradient(90deg,#1f77b4,#5aa9dd)}
-  .prog-text{font-weight:620; font-variant-numeric:tabular-nums}
+    background:linear-gradient(90deg,var(--accent),var(--accent-300))}
+  .prog-text{font-weight:var(--fw-medium); font-variant-numeric:tabular-nums}
   .prog-elapsed{color:var(--muted); font-variant-numeric:tabular-nums}
 
   /* ---------- dashboard: how-it-works onboarding ---------- */
   .how{margin-bottom:16px}
-  .how-h{font-size:15px; font-weight:660; margin-bottom:14px}
+  .how-h{font-size:var(--text-md); font-weight:var(--fw-medium); margin-bottom:14px}
   .how-steps{display:grid; gap:14px; margin-bottom:16px}
   @media (min-width:640px){.how-steps{grid-template-columns:repeat(3,1fr)}}
   .how-step{display:flex; gap:11px; align-items:flex-start}
   .how-num{flex:0 0 auto; width:24px; height:24px; border-radius:50%;
-    display:grid; place-items:center; font-size:12px; font-weight:700;
-    color:#fff; background:linear-gradient(135deg,#1f77b4,#3f93cf)}
-  .how-st{font-size:13px; font-weight:640; color:var(--ink)}
-  .how-sb{font-size:12px; color:var(--muted); line-height:1.5; margin-top:2px}
+    display:grid; place-items:center; font-size:var(--text-sm); font-weight:var(--fw-bold);
+    color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent-600))}
+  .how-st{font-size:var(--text-sm); font-weight:var(--fw-medium); color:var(--ink)}
+  .how-sb{font-size:var(--text-sm); color:var(--muted); line-height:1.5; margin-top:2px}
+
+  /* a11y: keyboard-focus ring for every interactive element (§4) */
+  :where(a,button,summary,[tabindex],select,input):focus-visible{outline:none;
+    box-shadow:0 0 0 3px var(--accent-ring); border-radius:var(--radius-xs)}
+  /* a11y: one gate neutralizing the app's own motion -- cell-scan loop, spinner,
+     toast rise, and the card/button hover lift (§4) */
+  @media (prefers-reduced-motion:reduce){
+    .cell.running::after,.spin,.toast{animation:none}
+    .run-card,.btn,.cell{transition:none}
+    .run-card:hover,.btn:hover{transform:none}
+  }
 """
 
 
@@ -1115,7 +1127,7 @@ _APP_JS = r"""
       "Abort");
     var head = E("div", {class:"live-head"}, [
       E("div", {}, [
-        E("h2", {style:"font-size:17px;font-weight:680",
+        E("h2", {style:"font-size:var(--text-md);font-weight:var(--fw-bold)",
           text:"Live run"}),
         E("div", {class:"live-id", text:id})
       ]),
@@ -1130,7 +1142,7 @@ _APP_JS = r"""
     var gridEl = E("div", {class:"cell-grid"});
     var legend = E("div", {class:"legend-row"}, [
       legendItem("var(--card-2)", "pending"),
-      legendItem("color-mix(in srgb,#1f77b4 30%,var(--card-2))", "running"),
+      legendItem("color-mix(in srgb,var(--accent) 30%,var(--card-2))", "running"),
       legendItem("var(--good-bg)", "valid"),
       legendItem("var(--bad-bg)", "invalid"),
       legendItem("#fff3d6", "contaminated")
@@ -1143,12 +1155,12 @@ _APP_JS = r"""
     view.appendChild(head);
     view.appendChild(progEl);
     view.appendChild(E("div", {class:"sec-h",
-      style:"margin-top:18px"}, [E("h2", {style:"font-size:15px",
+      style:"margin-top:18px"}, [E("h2", {style:"font-size:var(--text-md)",
       text:"Cells"})]));
     view.appendChild(gridEl);
     view.appendChild(legend);
     view.appendChild(E("div", {class:"sec-h",
-      style:"margin-top:18px"}, [E("h2", {style:"font-size:15px",
+      style:"margin-top:18px"}, [E("h2", {style:"font-size:var(--text-md)",
       text:"Live console"})]));
     view.appendChild(consoleEl);
     view.appendChild(doneSlot);
@@ -1270,7 +1282,7 @@ _APP_JS = r"""
           style:"margin-top:18px"}, [
           E("div", {class:"row", style:"justify-content:space-between"}, [
             E("div", {class:"row"}, [
-              E("strong", {style:"font-size:15px", text:"Run complete"}),
+              E("strong", {style:"font-size:var(--text-md)", text:"Run complete"}),
               verdictPill(ev.verdict)
             ]),
             E("div", {class:"done-cta"}, [
@@ -1472,7 +1484,7 @@ _APP_JS = r"""
         E("div", {class:"row", style:"margin-bottom:12px"}, [
           verdictPill(status === "missing" ? "unavailable" : status)
         ]),
-        E("h3", {style:"font-size:16px; font-weight:660; margin-bottom:6px",
+        E("h3", {style:"font-size:var(--text-md); font-weight:var(--fw-medium); margin-bottom:6px",
           text:"Report unavailable"}),
         E("p", {class:"hint", style:"max-width:54ch; line-height:1.6",
           text:msgs[status] || msgs.missing}),
