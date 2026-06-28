@@ -429,6 +429,35 @@ def test_app_shell_embeds_token_and_references_api():
     assert "/api/" in shell                     # talks to the API
 
 
+def test_finalize_run_threads_tasks_into_treatments():
+    """_finalize_run must forward `tasks` so the persisted manifest's treatments
+    block carries the shared prompt + the inject flag (the IV panel). Exercised
+    through the REAL finalize path (writes summary.json) with a real SKILL.md."""
+    import types
+    with tempfile.TemporaryDirectory() as td:
+        skill_dir = Path(td) / "write-tests-first"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("---\nname: x\n---\nWrite a test first.\n")
+        run_dir = Path(td) / "run1"
+        cfg = h.ExperimentConfig(
+            repo_path=Path("."), base_ref="HEAD", skill_src=skill_dir,
+            skill_name="write-tests-first", results_dir=run_dir, isolation="inject",
+            k=6, bootstrap_iters=100, permutation_iters=100)
+        reg = s.RunRegistry()
+        reg.create("run1", {"demo": False})
+        server = types.SimpleNamespace(registry=reg, runs_dir=Path(td))
+        tasks = [h.Task(id="t1", prompt="audit me")]
+        s._finalize_run(server, "run1", cfg, h._demo_results(), h.Preflight(),
+                        demo=False, tasks=tasks)
+        summary = json.loads((run_dir / "summary.json").read_text())
+        tr = summary["manifest"]["treatments"]
+        assert tr["isolation"] == "inject"
+        assert tr["shared_prompt"] == {"t1": "audit me"}
+        on = tr["arms"]["skill_on"]
+        assert "--append-system-prompt-file" in on["added"]
+        assert "Write a test first." in on["guidance"]["text"]
+
+
 def _run_all() -> None:
     fns = [v for k, v in sorted(globals().items())
            if k.startswith("test_") and callable(v)]

@@ -857,9 +857,14 @@ async def _spawn_and_drain(argv: list[str], cwd: Path, timeout_s: float,
     return proc.returncode, stdout, stderr, timed_out
 
 
-async def run_agent(worktree: Path, task: Task, cfg: ExperimentConfig,
-                    inject_file: Path | None = None,
-                    disable_skills: bool = False, model: str | None = None) -> dict:
+def build_agent_argv(task: Task, cfg: ExperimentConfig, *,
+                     inject_file: Path | str | None = None,
+                     disable_skills: bool = False,
+                     model: str | None = None) -> list[str]:
+    """The exact `claude -p` argv for one run. Extracted from run_agent (DRY) so the
+    treatments manifest can reproduce the SAME command the agent actually ran -- it
+    calls this with a sentinel `inject_file` so the displayed argv matches reality
+    without leaking the ephemeral temp path. Pure: no FS / subprocess."""
     cmd = [
         "claude", "-p", task.prompt,
         "--output-format", "stream-json",
@@ -880,6 +885,14 @@ async def run_agent(worktree: Path, task: Task, cfg: ExperimentConfig,
         cmd.append("--disable-slash-commands")
     if inject_file is not None:            # ...and force-inject THIS arm's guidance
         cmd += ["--append-system-prompt-file", str(inject_file)]
+    return cmd
+
+
+async def run_agent(worktree: Path, task: Task, cfg: ExperimentConfig,
+                    inject_file: Path | None = None,
+                    disable_skills: bool = False, model: str | None = None) -> dict:
+    cmd = build_agent_argv(task, cfg, inject_file=inject_file,
+                           disable_skills=disable_skills, model=model)
     rc, stdout, stderr, timed_out = await _spawn_and_drain(
         cmd, worktree, cfg.agent_timeout_s)
 
@@ -1307,7 +1320,7 @@ async def run_experiment(cfg: ExperimentConfig, tasks: list[Task],
     cfg.results_dir.mkdir(parents=True, exist_ok=True)
     results_path = cfg.results_dir / "results.jsonl"
     manifest_path = cfg.results_dir / "manifest.json"
-    manifest = experiment_manifest(cfg, seed=0, timestamp=time.time())
+    manifest = experiment_manifest(cfg, seed=0, timestamp=time.time(), tasks=tasks)
 
     prior: list[RunResult] = []
     done: set[tuple[str, str, int]] = set()
@@ -2001,12 +2014,103 @@ def build_judge_report(comparisons: list[JudgeComparison], cfg: ExperimentConfig
 # Reproducibility manifest + portable summary
 # ---------------------------------------------------------------------------
 
+def _arm_skill_md(src: Path | None) -> Path | None:
+    """The SKILL.md actually injected for an arm whose source is `src` -- mirrors the
+    resolution execute_run uses (a direct file, else the SKILL.md inside the dir) so
+    the reconstructed guidance is byte-identical to what ran."""
+    if src is None:
+        return None
+    if src.is_file():
+        return src
+    return _find_skill_md(src)
+
+
+def _arm_treatment(cfg: ExperimentConfig, arm: Arm, rep_task: "Task | None",
+                   offline: bool, limit: int) -> dict:
+    """One arm's slice of the treatments block: what command it ran and EXACTLY what
+    its skill added on top of the shared baseline. The inject guidance is re-derived
+    purely from the SKILL.md (the temp file is unlinked after the run) and capped at
+    `limit` with a `truncated` flag; FS/hash work is skipped when offline."""
+    runner = arm_runner(cfg, arm)
+    own_src, own_name = arm_skill(cfg, arm)
+    entry: dict = {
+        "role": "control" if arm is Arm.SKILL_OFF else "treatment",
+        "label": arm_label(cfg, arm),
+        "argv": [],
+        "added": [],
+    }
+    if runner is not None:                 # external CLI arm: no claude argv
+        entry["runner"] = _runner_label(runner)
+        entry["note"] = "prompt fed via stdin / {prompt_file}"
+        return entry
+
+    disable = cfg.isolation == "inject"
+    will_inject = bool(disable and own_name)
+    model = arm_model(cfg, arm)
+    if rep_task is not None:
+        # `added` = the tokens THIS arm appends beyond the same-isolation baseline
+        # (no skill guidance) -> control is empty, the skill arm shows exactly the
+        # one flag that differs. Drift-proof: both argvs come from build_agent_argv.
+        base_argv = build_agent_argv(rep_task, cfg, inject_file=None,
+                                     disable_skills=disable, model=model)
+        argv = build_agent_argv(
+            rep_task, cfg, inject_file=("<injected-guidance>" if will_inject else None),
+            disable_skills=disable, model=model)
+        entry["argv"] = argv
+        entry["added"] = argv[len(base_argv):]
+
+    if will_inject and not offline:        # reconstruct the injected guidance
+        md = _arm_skill_md(own_src)
+        if md is not None:
+            try:
+                text = injected_system_prompt(md)
+                entry["guidance"] = {
+                    "text": text[:limit],
+                    "truncated": len(text) > limit,
+                    "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                }
+            except OSError:
+                pass
+
+    if cfg.isolation == "worktree" and own_name:
+        inst = {"name": own_name, "path": f".claude/skills/{own_name}/",
+                "source": str(own_src) if own_src else None, "sha256": None}
+        if not offline:
+            md = _arm_skill_md(own_src)
+            if md is not None:
+                try:
+                    inst["sha256"] = hashlib.sha256(md.read_bytes()).hexdigest()
+                except OSError:
+                    pass
+        entry["installed_skill"] = inst
+    return entry
+
+
+def _treatments_block(cfg: ExperimentConfig, tasks: "list[Task] | None",
+                      offline: bool) -> dict:
+    """The independent variable, made auditable (plan 024 §2): the identical prompt
+    both arms ran + per-arm what each added. Pure from cfg + (for inject guidance) the
+    SKILL.md the manifest already hashes; offline skips FS/hash work but still emits
+    the shared prompt + skill identity. The argv is built from a representative task
+    (tasks[0]) -- structure is task-independent; per-task prompts ride shared_prompt."""
+    rep_task = tasks[0] if tasks else None
+    return {
+        "shared_prompt": {t.id: t.prompt for t in (tasks or [])},
+        "isolation": cfg.isolation,
+        "arms": {arm.value: _arm_treatment(cfg, arm, rep_task, offline,
+                                           cfg.judge_max_diff_chars)
+                 for arm in experiment_arms(cfg)},
+    }
+
+
 def experiment_manifest(cfg: ExperimentConfig, seed: int = 0,
-                        timestamp: float | None = None, offline: bool = False) -> dict:
+                        timestamp: float | None = None, offline: bool = False,
+                        tasks: "list[Task] | None" = None) -> dict:
     """Provenance for a run. Best-effort: external calls that fail record None,
     never raise. `timestamp` is injected so reports are reproducible in tests.
     `offline=True` skips ALL subprocess calls (claude/git/file hash) -- used by the
-    demo so it touches nothing."""
+    demo so it touches nothing. `tasks` (when known) seeds the `treatments` block so
+    the report can show the IV; offline still emits the shared prompt + skill identity."""
     def _try(fn):
         try:
             return fn()
@@ -2047,6 +2151,10 @@ def experiment_manifest(cfg: ExperimentConfig, seed: int = 0,
         "alpha": cfg.bootstrap_alpha,
         "platform": platform.platform(),
         "timestamp": timestamp,
+        # The independent variable itself (plan 024 §2): shared prompt + per-arm
+        # added tokens / injected guidance. Computed ONCE here (never per-run, which
+        # would bloat results.jsonl). Guidance text stays out of window.SKILL_AB.
+        "treatments": _treatments_block(cfg, tasks, offline),
     }
 
 
@@ -2887,6 +2995,26 @@ _HTML_STYLE = """
     margin:2px 0 4px}
   .wp-meta{font-size:11.5px; color:var(--muted); margin:8px 0 2px}
   .empty{color:var(--faint); font-style:italic}
+
+  /* ---------- treatment / inputs panel (plan 024 §2) ---------- */
+  .treat{margin-top:6px}
+  .treat-shared{margin-bottom:12px}
+  .treat-lbl{font-size:12px; color:var(--muted); margin-bottom:6px}
+  .treat-cmd{display:flex; gap:8px; align-items:baseline; margin:3px 0;
+    font-size:11.5px; overflow-wrap:anywhere}
+  .treat-cmd .al{flex:0 0 auto; color:var(--muted); font-size:10.5px;
+    text-transform:uppercase; letter-spacing:.04em}
+  .treat-arm h3{display:flex; align-items:baseline; gap:8px}
+  .treat-role{font-size:10px; font-weight:600; letter-spacing:.05em;
+    text-transform:uppercase; color:var(--muted)}
+  .treat-base{font-size:12px; color:var(--faint); font-style:italic; margin-top:2px}
+  .treat-pre{white-space:pre-wrap; overflow-wrap:anywhere; margin:0;
+    max-height:420px; overflow:auto; font-size:11.5px; line-height:1.5}
+  /* the one thing the skill arm added -- positive accent, light+dark safe */
+  .added{display:inline-block; margin-top:2px; padding:3px 8px; border-radius:7px;
+    font-size:11.5px; color:var(--good); background:var(--good-bg);
+    border:1px solid var(--good-line); overflow-wrap:anywhere}
+  .added .mono{color:inherit}
 
   .patch{font-family:var(--mono); font-size:11.5px; line-height:1.5;
     border:1px solid var(--line); border-radius:9px; background:var(--card-2);
@@ -4575,6 +4703,85 @@ def _work_blob(results: list[RunResult], cfg: ExperimentConfig, arms: list) -> d
     return work
 
 
+def _treatment_inputs_html(manifest: dict, cfg: ExperimentConfig) -> str:
+    """The independent variable, made legible (plan 024 §2.3): the identical
+    `claude -p "<prompt>"` both arms ran + EXACTLY what the skill arm added on top.
+    Rendered server-side and FULLY escaped -- the prompt and injected guidance live
+    only in this static body (prepended outside #app) and never enter window.SKILL_AB
+    nor any innerHTML-of-raw path. Reads the `treatments` block experiment_manifest
+    persists (empty/absent -> renders nothing)."""
+    tr = manifest.get("treatments")
+    if not tr:
+        return ""
+    esc = html.escape
+    long_prompt = 240   # longer than this collapses into a <details>
+    parts = [f'<div class="section-h"><h2>Treatment {_MIDDOT} inputs</h2>'
+             '<span class="hint">the independent variable &mdash; exactly one thing '
+             'differed</span></div>', '<div class="treat">']
+
+    # (a) the shared command -- byte-identical across every arm.
+    prompts = tr.get("shared_prompt") or {}
+    iso = esc(str(tr.get("isolation") or "?"))
+    parts.append('<div class="treat-shared"><div class="treat-lbl">both arms ran '
+                 f'<span class="mono">claude -p</span> &middot; {iso} isolation</div>')
+    if not prompts:
+        parts.append('<p class="empty">(no task prompts captured)</p>')
+    for tid, prompt in prompts.items():
+        et, ep = esc(tid), esc(prompt)
+        if len(prompt) > long_prompt:
+            parts.append(
+                f'<details class="det"><summary><span class="caret">{_CARET}</span>'
+                f'<span class="mono">claude -p</span> {et}'
+                f'<span class="count">{len(prompt)} chars</span></summary>'
+                f'<div class="det-body"><pre class="mono treat-pre">{ep}</pre>'
+                "</div></details>")
+        else:
+            parts.append(f'<div class="treat-cmd"><span class="al">{et}</span>'
+                         f'<span class="mono">claude -p "{ep}"</span></div>')
+    parts.append("</div>")  # .treat-shared
+
+    # (b) per-arm: what each added on top of that shared command.
+    parts.append('<div class="cols treat-arms">')
+    for arm in experiment_arms(cfg):
+        a = (tr.get("arms") or {}).get(arm.value)
+        if not a:
+            continue
+        label, role = esc(a.get("label") or arm.value), esc(a.get("role") or "")
+        parts.append(f'<div class="col treat-arm"><h3>{label} '
+                     f'<span class="treat-role">{role}</span></h3>')
+        added, inst, runner = a.get("added") or [], a.get("installed_skill"), a.get("runner")
+        if runner:
+            parts.append('<div class="added">runs <span class="mono">'
+                         f'{esc(runner)}</span> &middot; {esc(a.get("note") or "")}</div>')
+        elif added:
+            parts.append('<div class="added">+ <span class="mono">'
+                         f'{esc(" ".join(added))}</span></div>')
+        elif inst:
+            parts.append('<div class="added">installed <span class="mono">'
+                         f'{esc(inst.get("path") or "")}</span></div>')
+        else:
+            parts.append('<div class="treat-base">baseline &mdash; nothing added</div>')
+        parts.append("</div>")  # .col
+    parts.append("</div>")  # .cols
+
+    # (c) the full injected guidance, collapsed, for every arm that injected one.
+    for arm in experiment_arms(cfg):
+        a = (tr.get("arms") or {}).get(arm.value)
+        g = a.get("guidance") if a else None
+        if not g:
+            continue
+        label = esc(a.get("label") or arm.value)
+        sha = esc((g.get("sha256") or "")[:16])
+        cnt = "truncated" if g.get("truncated") else f"sha {sha}"
+        parts.append(
+            f'<details class="det"><summary><span class="caret">{_CARET}</span>'
+            f'injected guidance &mdash; {label}<span class="count">{cnt}</span>'
+            f'</summary><div class="det-body"><pre class="mono treat-pre">'
+            f'{esc(g.get("text") or "")}</pre></div></details>')
+    parts.append("</div>")  # .treat
+    return "".join(parts)
+
+
 def _work_products_html(results: list[RunResult], cfg: ExperimentConfig,
                         arms: list) -> str:
     """Per-task interactive diff comparison -- the `.cmp` shell (plan 024 §1.2). Each
@@ -4725,7 +4932,11 @@ def build_html_report(results: list[RunResult], pf: Preflight, cfg: ExperimentCo
     }
     blob = json.dumps(data).replace("</", "<\\/")
 
-    server_detail = _work_products_html(results, cfg, arms)
+    # Prepend the treatment/inputs panel so the IV lands at the top of the static
+    # body (outside #app); guidance/prompt text is escaped here and never reaches the
+    # window.SKILL_AB blob (which carries only counts/ids/flags).
+    server_detail = _treatment_inputs_html(manifest, cfg)
+    server_detail += _work_products_html(results, cfg, arms)
     if comparisons:
         server_detail += _judge_reasons_html(comparisons)
 
@@ -4960,7 +5171,7 @@ def dataclasses_replace(cfg: ExperimentConfig, **changes) -> ExperimentConfig:
 def _run_and_outputs(cfg: ExperimentConfig, tasks: list[Task], resume: bool = False,
                      html_out: Path | None = None):
     results, pf = asyncio.run(run_experiment(cfg, tasks, resume=resume))
-    manifest = experiment_manifest(cfg, seed=0, timestamp=time.time())
+    manifest = experiment_manifest(cfg, seed=0, timestamp=time.time(), tasks=tasks)
     print(build_report(results, pf, cfg, manifest=manifest))
     comparisons = None
     if cfg.judge_enabled:
@@ -5330,10 +5541,10 @@ def main(argv: list[str] | None = None) -> int:
         _run_and_outputs(cfg, tasks, resume=args.resume, html_out=args.html)
         return 0
     if args.cmd == "report":
-        cfg, _tasks = load_config(args.config)
+        cfg, tasks = load_config(args.config)
         jsonl = args.jsonl or (cfg.results_dir / "results.jsonl")
         results = load_results(jsonl)
-        manifest = experiment_manifest(cfg, seed=0, timestamp=time.time())
+        manifest = experiment_manifest(cfg, seed=0, timestamp=time.time(), tasks=tasks)
         jp = cfg.results_dir / "judge.jsonl"          # rebuild judge charts if persisted
         comparisons = ([JudgeComparison(**json.loads(line)) for line in
                         jp.read_text().splitlines() if line.strip()] if jp.exists() else None)

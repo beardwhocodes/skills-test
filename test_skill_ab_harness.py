@@ -376,6 +376,148 @@ def test_manifest_and_summary_shape():
     assert set(s["arms"]) == {"my-skill", "control"}
 
 
+# --------------------------------------------------------------------------
+# Treatment / inputs panel (plan 024 §2): persist + render the independent var
+# --------------------------------------------------------------------------
+
+def _skill_cfg(tmp, *, isolation: str, body: str, **kw) -> ExperimentConfig:
+    """A cfg whose skill_src is a real on-disk SKILL.md dir (so guidance/sha can be
+    reconstructed). `body` is the SKILL.md content."""
+    import tempfile as _t
+    d = Path(_t.mkdtemp(dir=tmp)) / "my-skill"
+    d.mkdir()
+    (d / "SKILL.md").write_text(body)
+    return _cfg(skill_src=d, skill_name="my-skill", isolation=isolation,
+                results_dir=Path(tmp) / "out", k=1, **kw)
+
+
+def test_treatments_inject_two_arm_shape():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        cfg = _skill_cfg(td, isolation="inject",
+                         body="---\nname: my-skill\n---\nWrite a test first.\n")
+        tasks = [h.Task(id="t1", prompt="fix the bug")]
+        man = h.experiment_manifest(cfg, timestamp=1.0, tasks=tasks)
+        tr = man["treatments"]
+        assert tr["isolation"] == "inject"
+        assert tr["shared_prompt"] == {"t1": "fix the bug"}        # the identical -p arg
+        on, off = tr["arms"]["skill_on"], tr["arms"]["skill_off"]
+        assert on["role"] == "treatment" and off["role"] == "control"
+        # exactly one thing differs: the inject flag (control adds nothing).
+        assert on["added"] == ["--append-system-prompt-file", "<injected-guidance>"]
+        assert off["added"] == []
+        # argv matches reality without leaking a temp path (sentinel stands in).
+        assert on["argv"][:3] == ["claude", "-p", "fix the bug"]
+        assert "<injected-guidance>" in on["argv"]
+        assert "--append-system-prompt-file" not in off["argv"]
+        # guidance re-derived purely from the SKILL.md: text + integrity sha present.
+        g = on["guidance"]
+        assert "Write a test first." in g["text"] and g["truncated"] is False
+        assert len(g["sha256"]) == 64
+        assert "name: my-skill" not in g["text"]      # frontmatter stripped
+        assert "guidance" not in off                  # control injects nothing
+
+
+def test_treatments_inject_guidance_truncates_at_limit():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        big = "A" * 5000
+        cfg = _skill_cfg(td, isolation="inject", body=f"# big\n{big}\n",
+                         judge_max_diff_chars=200)
+        man = h.experiment_manifest(cfg, timestamp=1.0,
+                                    tasks=[h.Task(id="t1", prompt="p")])
+        g = man["treatments"]["arms"]["skill_on"]["guidance"]
+        assert g["truncated"] is True and len(g["text"]) == 200
+        assert len(g["sha256"]) == 64                 # sha of the FULL guidance
+
+
+def test_treatments_worktree_records_installed_skill():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        cfg = _skill_cfg(td, isolation="worktree", body="# guide\nstuff\n")
+        man = h.experiment_manifest(cfg, timestamp=1.0,
+                                    tasks=[h.Task(id="t1", prompt="p")])
+        on, off = man["treatments"]["arms"]["skill_on"], man["treatments"]["arms"]["skill_off"]
+        assert on["added"] == []                      # no argv difference in worktree mode
+        inst = on["installed_skill"]
+        assert inst["name"] == "my-skill" and inst["path"] == ".claude/skills/my-skill/"
+        assert len(inst["sha256"]) == 64
+        assert "guidance" not in on                   # worktree loads at runtime, not injected
+        assert "installed_skill" not in off           # control installs nothing
+
+
+def test_treatments_offline_keeps_prompt_skips_fs():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        cfg = _skill_cfg(td, isolation="inject", body="# g\nbody\n")
+        man = h.experiment_manifest(cfg, timestamp=1.0, offline=True,
+                                    tasks=[h.Task(id="t1", prompt="p")])
+        tr = man["treatments"]
+        assert tr["shared_prompt"] == {"t1": "p"}      # pure -> still emitted
+        on = tr["arms"]["skill_on"]
+        assert on["added"] == ["--append-system-prompt-file", "<injected-guidance>"]
+        assert "guidance" not in on                    # FS read skipped offline
+
+
+def test_build_agent_argv_parity_with_run_agent():
+    """run_agent must build its argv THROUGH build_agent_argv (no drift), and the
+    sentinel inject path must match the real one except for the file token."""
+    import asyncio
+    cfg = _cfg()
+    task = h.Task(id="t1", prompt="do it")
+    captured = {}
+
+    async def _fake_spawn(argv, cwd, timeout_s, stdin_data=None):
+        captured["argv"] = list(argv)
+        return (0, b'{"type":"result","is_error":false,"num_turns":1}\n', b"", False)
+
+    orig = h._spawn_and_drain
+    h._spawn_and_drain = _fake_spawn
+    try:
+        asyncio.run(h.run_agent(Path("/wt"), task, cfg,
+                                inject_file=Path("/tmp/realinject.md"),
+                                disable_skills=True, model="claude-x"))
+    finally:
+        h._spawn_and_drain = orig
+    expect = h.build_agent_argv(task, cfg, inject_file=Path("/tmp/realinject.md"),
+                                disable_skills=True, model="claude-x")
+    assert captured["argv"] == expect            # run_agent really uses the extracted argv
+
+    real = h.build_agent_argv(task, cfg, inject_file=Path("/tmp/realinject.md"),
+                              disable_skills=True)
+    sent = h.build_agent_argv(task, cfg, inject_file="<injected-guidance>",
+                              disable_skills=True)
+    assert real[:-1] == sent[:-1]                 # identical except the file token
+    assert real[-1] == "/tmp/realinject.md" and sent[-1] == "<injected-guidance>"
+
+
+def test_treatment_panel_renders_and_escapes_hostile_inputs():
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        cfg = _skill_cfg(
+            td, isolation="inject",
+            body="---\nname: my-skill\n---\nGUIDE_TKN <script>alert('g')</script>\n")
+        hostile = 'PROMPT_TKN "><img src=x onerror=alert(1)>'
+        tasks = [h.Task(id="t1", prompt=hostile)]
+        man = h.experiment_manifest(cfg, timestamp=1.0, tasks=tasks)
+        res = [_rr(Arm.SKILL_ON, True, arm_skill_name="my-skill"),
+               _rr(Arm.SKILL_OFF, None)]
+        doc = h.build_html_report(res, h.Preflight(), cfg, man)
+        # panel present with the guided "one thing differed" framing
+        assert "Treatment" in doc and "exactly one thing" in doc
+        assert "PROMPT_TKN" in doc and "--append-system-prompt-file" in doc
+        assert "baseline &mdash; nothing added" in doc     # control row
+        # hostile bytes are escaped, never raw
+        assert "<img src=x onerror" not in doc
+        assert "<script>alert('g')</script>" not in doc
+        assert "&lt;script&gt;" in doc
+        # the load-bearing claim: guidance + prompt NEVER reach window.SKILL_AB
+        blob = _skill_ab_blob(doc)
+        blob_text = json.dumps(blob)
+        assert "GUIDE_TKN" not in blob_text and "PROMPT_TKN" not in blob_text
+        assert "treatments" not in blob
+
+
 def test_gallery_renders_two_summaries():
     # SPIKE (plan 020): a static index over many self-reported summary.json files.
     man = h.experiment_manifest(_cfg(), timestamp=1.0, offline=True)
@@ -1121,7 +1263,7 @@ def test_budget_guard_bounds_spend():
     tasks = [h.Task(id="a", prompt="x")]
     orig = (h.run_preflight, h.execute_run, h.experiment_manifest)
     h.run_preflight = lambda c, t, s: h.Preflight()
-    h.experiment_manifest = lambda c, seed=0, timestamp=None, offline=False: {
+    h.experiment_manifest = lambda c, seed=0, timestamp=None, offline=False, tasks=None: {
         "skill_md_sha256": None, "harness_version": "t", "model": c.model,
         "base_ref_sha": None, "k": c.k, "seed": seed, "timestamp": timestamp}
     spent_runs = {"n": 0}

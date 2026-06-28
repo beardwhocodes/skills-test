@@ -381,12 +381,15 @@ def _summary_card(summary: dict, verdict: dict | None) -> dict:
 
 
 def _finalize_run(server, run_id: str, cfg: h.ExperimentConfig,
-                  results: list, pf, demo: bool) -> None:
+                  results: list, pf, demo: bool, tasks: list | None = None) -> None:
     """Write report.html + summary.json + badge.svg into the run dir, persist
-    meta.json (so demo/title survive a restart), then publish experiment_done."""
+    meta.json (so demo/title survive a restart), then publish experiment_done.
+    `tasks` (real runs) seeds the manifest's treatments block (the IV panel); the
+    demo has no Task objects, so it falls back to the prompt-free skill identity."""
     run_dir = cfg.results_dir
     run_dir.mkdir(parents=True, exist_ok=True)
-    manifest = h.experiment_manifest(cfg, seed=0, timestamp=time.time(), offline=demo)
+    manifest = h.experiment_manifest(cfg, seed=0, timestamp=time.time(),
+                                     offline=demo, tasks=tasks)
     summary = h.summary_dict(results, cfg, manifest)
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     (run_dir / "report.html").write_text(h.build_html_report(results, pf, cfg, manifest))
@@ -420,7 +423,7 @@ def _run_real(server, run_id: str, cfg: h.ExperimentConfig, tasks: list) -> None
         asyncio.set_event_loop(loop)
         results, pf = loop.run_until_complete(
             h.run_experiment(cfg, tasks, on_event=lambda e: registry.publish(run_id, e)))
-        _finalize_run(server, run_id, cfg, results, pf, demo=False)
+        _finalize_run(server, run_id, cfg, results, pf, demo=False, tasks=tasks)
     except asyncio.CancelledError:
         pass                                       # aborted; registry already terminal
     except (Exception, SystemExit) as exc:         # noqa: BLE001 — surface, never crash
