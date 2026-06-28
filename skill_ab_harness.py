@@ -2580,6 +2580,8 @@ _HTML_STYLE = """
     --hunk:#8957e5; --accent:#1f77b4; --diverge:#9a6b00;
     --w-add:color-mix(in srgb,var(--good) 32%, transparent);
     --w-del:color-mix(in srgb,var(--bad) 32%, transparent);
+    --mark-bg:#ffe08a; --mark-ink:#3a2c00; --accent-ring:color-mix(in srgb,var(--accent) 40%, transparent);
+    --rail-cur:color-mix(in srgb,var(--accent) 13%, var(--card));
     --shadow-sm:0 1px 2px rgba(17,21,27,.05);
     --shadow:0 1px 2px rgba(17,21,27,.05), 0 10px 30px rgba(17,21,27,.07);
     --shadow-lg:0 2px 4px rgba(17,21,27,.05), 0 24px 60px rgba(17,21,27,.10);
@@ -2602,6 +2604,8 @@ _HTML_STYLE = """
       --hunk:#b392f0; --accent:#5aa9dd; --diverge:#e3b341;
       --w-add:color-mix(in srgb,var(--good) 40%, transparent);
       --w-del:color-mix(in srgb,var(--bad) 40%, transparent);
+      --mark-bg:#7a5b00; --mark-ink:#fff3cf; --accent-ring:color-mix(in srgb,var(--accent) 48%, transparent);
+      --rail-cur:color-mix(in srgb,var(--accent) 22%, var(--card));
       --shadow-sm:0 1px 2px rgba(0,0,0,.4);
       --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 36px rgba(0,0,0,.5);
       --shadow-lg:0 2px 6px rgba(0,0,0,.45), 0 30px 70px rgba(0,0,0,.6);
@@ -2929,6 +2933,135 @@ _HTML_STYLE = """
   .fold > button:hover{color:var(--ink-2); text-decoration:underline}
   .trunc{padding:6px 10px; color:var(--bad); background:var(--bad-bg);
     border-top:1px solid var(--bad-line); font-size:11px}
+
+  /* ---------- interactive .cmp diff shell (plan 024 §1.2/§1.5/§1.7) ------- */
+  .cmp{position:relative; margin-top:14px; background:var(--card);
+    border:1px solid var(--line); border-radius:13px; box-shadow:var(--shadow-sm);
+    overflow:visible}
+  .cmp-bar{position:sticky; top:0; z-index:6; display:flex; flex-wrap:wrap;
+    align-items:center; gap:8px 12px; padding:10px 12px; background:var(--card);
+    border-bottom:1px solid var(--line);
+    border-radius:13px 13px 0 0}
+  .cmp-task{font-size:13px; font-weight:660; display:flex; align-items:baseline;
+    gap:8px}
+  .cmp-task .count{font-size:11.5px; font-weight:550; color:var(--muted)}
+  .cmp .armrun{display:flex; flex-wrap:wrap; gap:8px}
+  .cmp .armpick{display:inline-flex; align-items:center; gap:6px; font-size:11.5px;
+    color:var(--ink-2)}
+  .cmp .armpick .al{font-family:var(--mono); font-size:11px; color:var(--muted)}
+  .cmp select.runsel{font-family:var(--sans); font-size:12px; font-weight:600;
+    color:var(--ink); background:var(--card); border:1px solid var(--line-2);
+    border-radius:8px; padding:5px 9px; cursor:pointer}
+  .cmp select.runsel:disabled{color:var(--faint); cursor:not-allowed}
+  .modesw{display:inline-flex; background:var(--card-2); border:1px solid var(--line);
+    border-radius:9px; padding:2px}
+  .modesw .mtab{font:inherit; font-size:12px; font-weight:600; color:var(--muted);
+    background:none; border:none; border-radius:7px; padding:5px 11px; cursor:pointer}
+  .modesw .mtab[aria-selected="true"]{color:var(--ink); background:var(--card);
+    box-shadow:var(--shadow-sm)}
+  .viewsw{display:inline-flex; gap:0}
+  .cmp .vbtn{font:inherit; font-size:12px; font-weight:600; color:var(--ink-2);
+    background:var(--card); border:1px solid var(--line-2); padding:5px 11px;
+    cursor:pointer}
+  .viewsw .vbtn:first-child{border-radius:8px 0 0 8px}
+  .viewsw .vbtn:last-child{border-radius:0 8px 8px 0; border-left:none}
+  .cmp .wrapbtn{border-radius:8px}
+  .cmp .vbtn[aria-pressed="true"]{color:var(--ink);
+    background:color-mix(in srgb,var(--accent) 12%, var(--card));
+    border-color:color-mix(in srgb,var(--accent) 45%, var(--line-2))}
+  .cmp .diffsearch{font:inherit; font-size:12px; color:var(--ink);
+    background:var(--card); border:1px solid var(--line-2); border-radius:8px;
+    padding:5px 10px; min-width:150px; flex:1 1 150px; max-width:280px}
+  .filerail{flex:1 1 100%; display:flex; flex-wrap:wrap; gap:5px; align-items:center;
+    margin-top:2px}
+  .filerail:empty{display:none}
+  .filerail .railsel{display:none; font:inherit; font-size:12px; color:var(--ink);
+    background:var(--card); border:1px solid var(--line-2); border-radius:8px;
+    padding:5px 9px; max-width:100%}
+  .railchip{font:inherit; font-size:11px; font-family:var(--mono); color:var(--ink-2);
+    background:var(--card-2); border:1px solid var(--line); border-radius:7px;
+    padding:3px 8px; cursor:pointer; max-width:240px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap}
+  .railchip:hover{border-color:var(--line-2); color:var(--ink)}
+  .railchip.cur{color:var(--ink); background:var(--rail-cur);
+    border-color:color-mix(in srgb,var(--accent) 45%, var(--line))}
+  .railchip .rc{color:var(--muted); margin-left:6px; font-variant-numeric:tabular-nums}
+
+  .panes{display:flex; gap:0}
+  .pane{flex:1 1 0; min-width:0; max-height:72vh; overflow:auto;
+    border-right:1px solid var(--line)}
+  .pane:last-child{border-right:none}
+  .pane-h{position:sticky; top:0; z-index:3; padding:6px 10px;
+    font-family:var(--mono); font-size:11.5px; font-weight:600; color:var(--ink-2);
+    background:var(--card-2); border-bottom:1px solid var(--line)}
+  .panes[data-mode="focus"] .pane{display:none}
+  .panes[data-mode="focus"] .pane.focus{display:block; flex:1 1 100%}
+  .diffview[hidden]{display:none}
+  /* the pane is the single scroll container: flatten the inner batch-1 .patch box */
+  .cmp .pane .patch{max-height:none; overflow:visible; border:none; border-radius:0;
+    margin:0; background:transparent}
+  .cmp .pane .wp-meta{padding:0 10px}
+  .cmp .row .tx{white-space:pre; overflow-wrap:normal}
+  .cmp.wrap .row .tx, .cmp.wrap .sp-tx{white-space:pre-wrap; overflow-wrap:anywhere}
+
+  /* split view: a 4-col grid [old# | old code | new# | new code] from clones */
+  .splitgrid{display:none; grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr);
+    font-family:var(--mono); font-size:11.5px; line-height:1.5}
+  .file.split .hunk > .row, .file.split .hunk > .fold{display:none}
+  .file.split .splitgrid{display:grid}
+  .splitgrid .sp-ln{padding:0 8px; text-align:right; color:var(--faint);
+    font-variant-numeric:tabular-nums; user-select:none; background:var(--card-2)}
+  .splitgrid .sp-tx{white-space:pre; overflow-wrap:normal; padding:0 8px}
+  .splitgrid .sp-tx.del{background:color-mix(in srgb,var(--bad) 7%, transparent);
+    color:var(--bad)}
+  .splitgrid .sp-tx.add{background:color-mix(in srgb,var(--good) 7%, transparent);
+    color:var(--good)}
+  .splitgrid .sp-ln.del{background:color-mix(in srgb,var(--bad) 7%, var(--card-2))}
+  .splitgrid .sp-ln.add{background:color-mix(in srgb,var(--good) 7%, var(--card-2))}
+  .splitgrid .sp-fold{grid-column:1 / -1; padding:3px 10px; color:var(--muted);
+    background:var(--card-2); border-bottom:1px solid var(--line)}
+
+  .file-head .copy, .hunk-head .copy{font:inherit; font-size:10.5px; font-weight:600;
+    color:var(--muted); background:var(--card-2); border:1px solid var(--line-2);
+    border-radius:6px; padding:2px 7px; cursor:pointer; margin-left:8px}
+  .file-head .copy{margin-left:8px}
+  .file-head .copy.ok, .hunk-head .copy.ok{color:var(--good);
+    border-color:var(--good-line)}
+  .hunk-head{display:flex; align-items:center; gap:8px}
+  .hunk-head .copy{margin-left:auto}
+
+  mark{background:var(--mark-bg); color:var(--mark-ink); border-radius:2px;
+    padding:0 1px}
+
+  .legend{position:fixed; right:16px; bottom:16px; z-index:60; display:none;
+    max-width:300px; background:var(--card); color:var(--ink);
+    border:1px solid var(--line-2); border-radius:12px; box-shadow:var(--shadow-lg);
+    padding:13px 15px; font-size:12px; line-height:1.7}
+  .legend.on{display:block}
+  .legend h4{margin:0 0 6px; font-size:12.5px; font-weight:680}
+  .legend kbd{font-family:var(--mono); font-size:11px; background:var(--card-2);
+    border:1px solid var(--line-2); border-radius:5px; padding:1px 5px}
+  .legend dl{margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 10px;
+    align-items:baseline}
+  .legend dt,.legend dd{margin:0}
+
+  .file.hl{animation:hlflash 1.1s ease}
+  @keyframes hlflash{0%{background:var(--rail-cur)} 100%{background:transparent}}
+
+  :where(.cmp button, .cmp select, .cmp input, .railchip, .legend
+    button):focus-visible{outline:none;
+    box-shadow:0 0 0 3px var(--accent-ring); border-radius:7px}
+
+  @media (max-width:720px){
+    .panes{flex-direction:column}
+    .pane{max-height:60vh; border-right:none; border-bottom:1px solid var(--line)}
+    .filerail .railchip{display:none}
+    .filerail .railsel{display:inline-block}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .pane{scroll-behavior:auto}
+    .file.hl{animation:none}
+  }
 
   footer{margin-top:34px; text-align:center; color:var(--faint); font-size:11.5px}
 
@@ -3800,9 +3933,526 @@ _HTML_SCRIPT = r"""(function(){
       if (fold) fold.removeChild(b);
     });
   }
+
+  /* ======================================================================
+     DiffViewer -- interactive .cmp diff shell (plan 024 §1.5). Escape-safe by
+     construction: Split CLONES already-escaped .tx nodes, Search wraps matches
+     via DOM Range/createElement, Copy reads .textContent, the rail reads
+     getAttribute/textContent. No diff-derived byte is ever assigned to
+     innerHTML. The data blob carries only ids/counts/flags (D.work), never text.
+     ====================================================================== */
+  function DiffViewer(){
+    var cmps = Array.prototype.slice.call(document.querySelectorAll(".cmp"));
+    if (!cmps.length) return;
+    var reduceMotion = window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+    var sBehav = reduceMotion ? "auto" : "smooth";
+    var legendEl = null;
+
+    function lsGet(k){ try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v){ try { window.localStorage.setItem(k, v); } catch (e) {} }
+    function list(root, sel){ return Array.prototype.slice.call(root.querySelectorAll(sel)); }
+    function panesOf(cmp){ return list(cmp, ".pane"); }
+    function panesEl(cmp){ return cmp.querySelector(".panes"); }
+    function modeOf(cmp){ var p = panesEl(cmp); return p ? p.getAttribute("data-mode") : "compare"; }
+    function visibleView(pane){ return pane ? pane.querySelector(".diffview:not([hidden])") : null; }
+    function focusPane(cmp){ return cmp._focus || panesOf(cmp)[0] || null; }
+    function activePane(cmp){
+      if (modeOf(cmp) === "focus") return cmp.querySelector(".pane.focus") || panesOf(cmp)[0];
+      return focusPane(cmp);
+    }
+    function curFiles(cmp){
+      var v = visibleView(activePane(cmp));
+      return v ? list(v, "[id^='f-']") : [];
+    }
+    function curHunks(cmp){
+      var v = visibleView(activePane(cmp));
+      return v ? list(v, ".hunk") : [];
+    }
+
+    /* ---- scrolling helpers ---- */
+    function scrollPaneTo(pane, el){
+      if (!pane || !el) return;
+      var pr = pane.getBoundingClientRect(), er = el.getBoundingClientRect();
+      var head = pane.querySelector(".pane-h");
+      var off = head ? head.offsetHeight : 0;
+      var top = pane.scrollTop + (er.top - pr.top) - off - 4;
+      if (pane.scrollTo) pane.scrollTo({ top: top, behavior: sBehav });
+      else pane.scrollTop = top;
+    }
+    function scrollEnd(pane, bottom){
+      if (!pane) return;
+      var top = bottom ? pane.scrollHeight : 0;
+      if (pane.scrollTo) pane.scrollTo({ top: top, behavior: sBehav });
+      else pane.scrollTop = top;
+    }
+
+    /* ---- run picker ---- */
+    function showRun(cmp, armVal, runId){
+      var pane = cmp.querySelector(".pane[data-arm='" + armVal + "']");
+      if (!pane) return;
+      list(pane, ".diffview").forEach(function(v){
+        v.hidden = v.getAttribute("data-run") !== runId;
+      });
+      clearMarks(cmp);
+      refresh(cmp);
+    }
+
+    /* ---- mode / focus ---- */
+    function setMode(cmp, mode){
+      var p = panesEl(cmp);
+      if (!p) return;
+      p.setAttribute("data-mode", mode);
+      list(cmp, ".modesw .mtab").forEach(function(t){
+        t.setAttribute("aria-selected", t.getAttribute("data-mode") === mode ? "true" : "false");
+      });
+      lsSet("skillab:mode:" + cmp.getAttribute("data-task"), mode);
+      refresh(cmp);
+    }
+    function setFocusPane(cmp, pane){
+      if (!pane || cmp._focus === pane) return;
+      cmp._focus = pane;
+      panesOf(cmp).forEach(function(p){ p.classList.toggle("focus", p === pane); });
+      refresh(cmp);
+    }
+
+    /* ---- wrap ---- */
+    function setWrap(cmp, on){
+      cmp.classList.toggle("wrap", on);
+      var b = cmp.querySelector(".wrapbtn");
+      if (b) b.setAttribute("aria-pressed", on ? "true" : "false");
+      lsSet("skillab:wrap", on ? "1" : "0");
+    }
+    function toggleWrap(cmp){ setWrap(cmp, !cmp.classList.contains("wrap")); }
+
+    /* ---- split (per-file, persisted; toolbar bulk-sets the whole cmp) ---- */
+    function buildSplit(file){
+      if (file._splitBuilt) return;
+      list(file, ".hunk").forEach(function(hunk){
+        var grid = document.createElement("div");
+        grid.className = "splitgrid";
+        var pendDel = [], pendAdd = [];
+        function lnClone(row, which){
+          var lns = row.querySelectorAll(".ln");
+          return lns[which] ? lns[which].cloneNode(true) : null;
+        }
+        function cell(cls, node){
+          var c = document.createElement("div");
+          c.className = cls;
+          if (node) c.appendChild(node);
+          else c.appendChild(document.createTextNode(""));
+          return c;
+        }
+        function txClone(row){
+          var tx = row.querySelector(".tx");
+          return tx ? tx.cloneNode(true) : null;
+        }
+        function flush(){
+          var n = Math.max(pendDel.length, pendAdd.length);
+          for (var i = 0; i < n; i++){
+            var d = pendDel[i], a = pendAdd[i];
+            grid.appendChild(cell("sp-ln" + (d ? " del" : ""), d ? lnClone(d, 0) : null));
+            grid.appendChild(cell("sp-tx" + (d ? " del" : ""), d ? txClone(d) : null));
+            grid.appendChild(cell("sp-ln" + (a ? " add" : ""), a ? lnClone(a, 1) : null));
+            grid.appendChild(cell("sp-tx" + (a ? " add" : ""), a ? txClone(a) : null));
+          }
+          pendDel = []; pendAdd = [];
+        }
+        var kids = hunk.children;
+        for (var k = 0; k < kids.length; k++){
+          var node = kids[k];
+          if (node.classList.contains("row")){
+            if (node.classList.contains("del")) pendDel.push(node);
+            else if (node.classList.contains("add")) pendAdd.push(node);
+            else {
+              flush();
+              grid.appendChild(cell("sp-ln", lnClone(node, 0)));
+              grid.appendChild(cell("sp-tx", txClone(node)));
+              grid.appendChild(cell("sp-ln", lnClone(node, 1)));
+              grid.appendChild(cell("sp-tx", txClone(node)));
+            }
+          } else if (node.classList.contains("fold")){
+            flush();
+            var fc = document.createElement("div");
+            fc.className = "sp-fold";
+            var btn = node.querySelector("button");
+            fc.appendChild(document.createTextNode(
+              btn ? btn.textContent : (node.getAttribute("data-n") || "") + " unchanged lines"));
+            grid.appendChild(fc);
+          }
+        }
+        flush();
+        hunk.appendChild(grid);
+      });
+      file._splitBuilt = true;
+    }
+    function setFileSplit(file, on){
+      if (on) buildSplit(file);
+      file.classList.toggle("split", !!on);
+      if (file.id) lsSet("skillab:split:" + file.id, on ? "1" : "0");
+    }
+    function cmpSplitOn(cmp){
+      var files = list(cmp, ".file");
+      if (!files.length) return false;
+      for (var i = 0; i < files.length; i++)
+        if (!files[i].classList.contains("split")) return false;
+      return true;
+    }
+    function reflectSplit(cmp){
+      var on = cmpSplitOn(cmp);
+      list(cmp, ".viewsw .vbtn").forEach(function(b){
+        b.setAttribute("aria-pressed",
+          ((b.getAttribute("data-act") === "split") === on) ? "true" : "false");
+      });
+    }
+    function setSplit(cmp, on){
+      list(cmp, ".file").forEach(function(f){ setFileSplit(f, on); });
+      reflectSplit(cmp);
+    }
+    function toggleSplit(cmp){ setSplit(cmp, !cmpSplitOn(cmp)); }
+    function restoreSplit(cmp){
+      list(cmp, ".file").forEach(function(f){
+        if (f.id && lsGet("skillab:split:" + f.id) === "1") setFileSplit(f, true);
+      });
+      reflectSplit(cmp);
+    }
+
+    /* ---- file rail + scroll-spy ---- */
+    function buildRail(cmp){
+      var rail = cmp.querySelector(".filerail");
+      if (!rail) return;
+      while (rail.firstChild) rail.removeChild(rail.firstChild);
+      var files = curFiles(cmp);
+      if (!files.length) return;
+      var sel = document.createElement("select");
+      sel.className = "railsel";
+      sel.setAttribute("aria-label", "jump to file");
+      files.forEach(function(f){
+        var path = f.getAttribute("data-path") || f.id;
+        var add = f.getAttribute("data-add") || "0", del = f.getAttribute("data-del") || "0";
+        var meta = "+" + add + " −" + del;
+        var chip = document.createElement("button");
+        chip.type = "button"; chip.className = "railchip";
+        chip.setAttribute("data-target", f.id);
+        chip.appendChild(document.createTextNode(path));
+        var rc = document.createElement("span");
+        rc.className = "rc"; rc.appendChild(document.createTextNode(meta));
+        chip.appendChild(rc);
+        chip.addEventListener("click", function(){ gotoFile(cmp, f.id); });
+        rail.appendChild(chip);
+        var opt = document.createElement("option");
+        opt.value = f.id;
+        opt.appendChild(document.createTextNode(path + "  " + meta));
+        sel.appendChild(opt);
+      });
+      sel.addEventListener("change", function(){ gotoFile(cmp, sel.value); });
+      rail.appendChild(sel);
+    }
+    function markCur(cmp, id){
+      var rail = cmp.querySelector(".filerail");
+      if (!rail) return;
+      list(rail, ".railchip").forEach(function(c){
+        c.classList.toggle("cur", c.getAttribute("data-target") === id);
+      });
+      var sel = rail.querySelector(".railsel");
+      if (sel) sel.value = id;
+    }
+    function flashFile(el){
+      el.classList.remove("hl");
+      void el.offsetWidth;
+      el.classList.add("hl");
+      setTimeout(function(){ el.classList.remove("hl"); }, 1200);
+    }
+    function gotoFile(cmp, id){
+      var target = document.getElementById(id);
+      if (!target) return;
+      var pane = target.closest ? target.closest(".pane") : null;
+      scrollPaneTo(pane, target);
+      var path = target.getAttribute("data-path");
+      panesOf(cmp).forEach(function(p){
+        if (p === pane) return;
+        var v = visibleView(p);
+        if (!v) return;
+        var fs = list(v, "[id^='f-']");
+        for (var i = 0; i < fs.length; i++){
+          if (fs[i].getAttribute("data-path") === path){ scrollPaneTo(p, fs[i]); break; }
+        }
+      });
+      flashFile(target);
+      markCur(cmp, id);
+    }
+    function spyRewire(cmp){
+      if (!window.IntersectionObserver) return;
+      if (cmp._io){ cmp._io.disconnect(); cmp._io = null; }
+      var pane = activePane(cmp);
+      var view = visibleView(pane);
+      if (!view) return;
+      var io = new IntersectionObserver(function(entries){
+        var best = null;
+        entries.forEach(function(en){
+          if (en.isIntersecting
+              && (!best || en.boundingClientRect.top < best.boundingClientRect.top))
+            best = en;
+        });
+        if (best) markCur(cmp, best.target.id);
+      }, { root: pane, rootMargin: "0px 0px -70% 0px", threshold: 0 });
+      list(view, "[id^='f-']").forEach(function(f){ io.observe(f); });
+      cmp._io = io;
+    }
+    function refresh(cmp){ buildRail(cmp); spyRewire(cmp); }
+
+    /* ---- sync-scroll (Compare), ratio-mirrored + reentrancy guard ---- */
+    function syncScroll(cmp){
+      var panes = panesOf(cmp);
+      if (panes.length < 2) return;
+      panes.forEach(function(src){
+        src.addEventListener("scroll", function(){
+          if (src._suppress){ src._suppress = false; return; }
+          if (modeOf(cmp) === "focus") return;
+          if (src._raf) return;
+          src._raf = requestAnimationFrame(function(){
+            src._raf = null;
+            var denom = src.scrollHeight - src.clientHeight;
+            var ratio = denom > 0 ? src.scrollTop / denom : 0;
+            panes.forEach(function(dst){
+              if (dst === src) return;
+              var top = ratio * (dst.scrollHeight - dst.clientHeight);
+              if (Math.abs(dst.scrollTop - top) > 1){ dst._suppress = true; dst.scrollTop = top; }
+            });
+          });
+        });
+      });
+    }
+
+    /* ---- copy (clipboard API -> hidden-textarea execCommand fallback) ---- */
+    function diffText(scope){
+      var out = [];
+      list(scope, ".row").forEach(function(r){
+        var sg = r.querySelector(".sg"), tx = r.querySelector(".tx");
+        out.push((sg ? sg.textContent : " ") + (tx ? tx.textContent : ""));
+      });
+      return out.join("\n");
+    }
+    function fallbackCopy(text){
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.setAttribute("readonly", "");
+        ta.style.position = "fixed"; ta.style.left = "-9999px"; ta.style.top = "0";
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) { return false; }
+    }
+    function flashCopy(btn){
+      if (!btn) return;
+      var old = btn.textContent;
+      btn.classList.add("ok"); btn.textContent = "Copied";
+      setTimeout(function(){ btn.classList.remove("ok"); btn.textContent = old; }, 1200);
+    }
+    function copyDiff(scope, btn){
+      if (!scope) return;
+      var text = diffText(scope);
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(
+          function(){ flashCopy(btn); },
+          function(){ if (fallbackCopy(text)) flashCopy(btn); });
+      } else if (fallbackCopy(text)) flashCopy(btn);
+    }
+    function injectCopy(cmp){
+      function mk(scope){
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "copy"; b.setAttribute("data-scope", scope);
+        b.appendChild(document.createTextNode("Copy"));
+        return b;
+      }
+      list(cmp, ".file-head").forEach(function(head){
+        if (head.querySelector(".copy")) return;
+        var b = mk("file");
+        b.addEventListener("click", function(e){
+          e.stopPropagation(); copyDiff(b.closest(".file"), b);
+        });
+        head.appendChild(b);
+      });
+      list(cmp, ".hunk-head").forEach(function(head){
+        if (head.querySelector(".copy")) return;
+        var b = mk("hunk");
+        b.addEventListener("click", function(e){
+          e.stopPropagation(); copyDiff(b.closest(".hunk"), b);
+        });
+        head.appendChild(b);
+      });
+    }
+    function copyFocusedFile(cmp){
+      var rail = cmp.querySelector(".filerail");
+      var cur = rail ? rail.querySelector(".railchip.cur") : null;
+      var id = cur ? cur.getAttribute("data-target") : null;
+      var file = id ? document.getElementById(id) : null;
+      if (!file) file = curFiles(cmp)[0];
+      if (file) copyDiff(file, file.querySelector(".file-head .copy"));
+    }
+
+    /* ---- search (DOM Range; never innerHTML) ---- */
+    function clearMarks(cmp){
+      list(cmp, "mark").forEach(function(m){
+        var p = m.parentNode;
+        if (!p) return;
+        p.replaceChild(document.createTextNode(m.textContent), m);
+        p.normalize();
+      });
+    }
+    function markNode(node, q){
+      var low = node.nodeValue.toLowerCase(), hits = [], idx = low.indexOf(q);
+      while (idx !== -1){ hits.push(idx); idx = low.indexOf(q, idx + q.length); }
+      for (var i = hits.length - 1; i >= 0; i--){
+        var r = document.createRange();
+        r.setStart(node, hits[i]); r.setEnd(node, hits[i] + q.length);
+        var mk = document.createElement("mark");
+        try { r.surroundContents(mk); } catch (e) {}
+      }
+    }
+    function runSearch(cmp, query){
+      clearMarks(cmp);
+      var q = (query || "").toLowerCase();
+      if (!q) return;
+      list(cmp, ".diffview:not([hidden]) .tx").forEach(function(tx){
+        var w = document.createTreeWalker(tx, NodeFilter.SHOW_TEXT, null, false);
+        var nodes = [], n;
+        while ((n = w.nextNode())) nodes.push(n);
+        nodes.forEach(function(t){ markNode(t, q); });
+      });
+    }
+
+    /* ---- help legend ---- */
+    function buildLegend(){
+      var box = document.createElement("div");
+      box.className = "legend"; box.setAttribute("role", "dialog");
+      box.setAttribute("aria-label", "diff viewer keyboard shortcuts");
+      var h = document.createElement("h4");
+      h.appendChild(document.createTextNode("Keyboard")); box.appendChild(h);
+      var dl = document.createElement("dl");
+      [["j / k", "next / prev hunk"], ["n / p", "next / prev file"],
+       ["u", "split / unified"], ["w", "toggle wrap"], ["/", "focus search"],
+       ["c", "copy focused file"], ["g / G", "top / bottom"], ["?", "toggle this help"]
+      ].forEach(function(p){
+        var dt = document.createElement("dt"), kb = document.createElement("kbd");
+        kb.appendChild(document.createTextNode(p[0])); dt.appendChild(kb);
+        var dd = document.createElement("dd");
+        dd.appendChild(document.createTextNode(p[1]));
+        dl.appendChild(dt); dl.appendChild(dd);
+      });
+      box.appendChild(dl);
+      document.body.appendChild(box);
+      return box;
+    }
+    function toggleLegend(){
+      if (!legendEl) legendEl = buildLegend();
+      legendEl.classList.toggle("on");
+    }
+
+    /* ---- keyboard navigation (within the active pane) ---- */
+    function relTop(pane, el){
+      return el.getBoundingClientRect().top - pane.getBoundingClientRect().top;
+    }
+    function step(list_, pane, dir){
+      if (!list_.length) return null;
+      var idx = -1;
+      for (var i = 0; i < list_.length; i++){
+        if (relTop(pane, list_[i]) <= 6) idx = i; else break;
+      }
+      var ni = idx + dir;
+      if (ni < 0) ni = 0;
+      if (ni > list_.length - 1) ni = list_.length - 1;
+      return list_[ni];
+    }
+    function activeCmp(){
+      var best = cmps[0], score = Infinity, mid = window.innerHeight / 2;
+      cmps.forEach(function(c){
+        var r = c.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight) return;
+        var s = Math.abs((r.top + r.bottom) / 2 - mid);
+        if (s < score){ score = s; best = c; }
+      });
+      return best;
+    }
+    function onKey(e){
+      var t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"
+                || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      var key = e.key;
+      if ("jknpuwcgG/?".indexOf(key) === -1) return;
+      var cmp = activeCmp();
+      if (!cmp) return;
+      var pane = activePane(cmp);
+      if (key === "?"){ toggleLegend(); }
+      else if (key === "/"){ var s = cmp.querySelector(".diffsearch"); if (s) s.focus(); }
+      else if (key === "u"){ toggleSplit(cmp); }
+      else if (key === "w"){ toggleWrap(cmp); }
+      else if (key === "c"){ copyFocusedFile(cmp); }
+      else if (key === "g"){ scrollEnd(pane, false); }
+      else if (key === "G"){ scrollEnd(pane, true); }
+      else if (key === "j" || key === "k"){
+        var el = step(curHunks(cmp), pane, key === "j" ? 1 : -1);
+        if (el) scrollPaneTo(pane, el);
+      } else if (key === "n" || key === "p"){
+        var f = step(curFiles(cmp), pane, key === "n" ? 1 : -1);
+        if (f){ scrollPaneTo(pane, f); markCur(cmp, f.id); }
+      } else return;
+      e.preventDefault();
+    }
+
+    /* ---- per-cmp init ---- */
+    function initCmp(cmp){
+      var task = cmp.getAttribute("data-task");
+      var panes = panesOf(cmp);
+      if (panes[0]){ panes[0].classList.add("focus"); cmp._focus = panes[0]; }
+
+      list(cmp, "select.runsel").forEach(function(sel){
+        sel.addEventListener("change", function(){
+          showRun(cmp, sel.getAttribute("data-arm"), sel.value);
+        });
+      });
+      list(cmp, ".modesw .mtab").forEach(function(tab){
+        tab.addEventListener("click", function(){ setMode(cmp, tab.getAttribute("data-mode")); });
+      });
+      list(cmp, ".viewsw .vbtn").forEach(function(b){
+        b.addEventListener("click", function(){ setSplit(cmp, b.getAttribute("data-act") === "split"); });
+      });
+      var wrapBtn = cmp.querySelector(".wrapbtn");
+      if (wrapBtn) wrapBtn.addEventListener("click", function(){ toggleWrap(cmp); });
+      var search = cmp.querySelector(".diffsearch");
+      if (search){
+        var deb;
+        search.addEventListener("input", function(){
+          clearTimeout(deb);
+          deb = setTimeout(function(){ runSearch(cmp, search.value); }, 120);
+        });
+      }
+      panes.forEach(function(p){
+        p.addEventListener("mousedown", function(){ setFocusPane(cmp, p); });
+      });
+      injectCopy(cmp);
+
+      // restore persisted prefs (work under file://)
+      if (lsGet("skillab:wrap") === "1") setWrap(cmp, true);
+      restoreSplit(cmp);
+      var savedMode = lsGet("skillab:mode:" + task);
+      if (savedMode === "focus" || savedMode === "compare") setMode(cmp, savedMode);
+
+      syncScroll(cmp);
+      refresh(cmp);
+    }
+
+    cmps.forEach(initCmp);
+    document.addEventListener("keydown", onKey);
+  }
+
   mount();
   wireTooltip();
   wireDiff();
+  DiffViewer();
 })();
 """
 
@@ -3858,7 +4508,8 @@ def _chart_data(results: list[RunResult], cfg: ExperimentConfig, metrics: list,
             "dir": {m: _metric_direction(cfg, m) for m in metrics},
             "arms": [arm_label(cfg, a) for a in arms], "armColors": arm_colors,
             "tasks": tasks, "taskColors": task_colors, "runs": runs,
-            "armMeans": arm_means, "comparisons": comps, "judge": judge}
+            "armMeans": arm_means, "comparisons": comps, "judge": judge,
+            "work": _work_blob(results, cfg, arms)}
 
 
 def _verdict_blob(verdict: dict | None, cross_runner: bool = False) -> dict:
@@ -3881,36 +4532,122 @@ def _verdict_blob(verdict: dict | None, cross_runner: bool = False) -> dict:
     return {"label": label, "tone": tone, "crossRunner": False, "text": text}
 
 
+def _run_patch_id(tid: str, arm_value: str, run_index: int) -> str:
+    """Stable, DOM-safe id for one run's rendered diff (task+arm+run). Shared by the
+    server render and the `work` blob so their `f-<pid>-<fi>` file ids line up. The
+    charset (`[0-9A-Za-z-]`) is safe to interpolate raw into an id/attribute/value."""
+    return re.sub(r"[^0-9A-Za-z]+", "-", f"{tid}-{arm_value}-{run_index}")
+
+
+def _shown_runs(results: list[RunResult], tid: str, arm,
+                limit: int = 3) -> list[RunResult]:
+    """The valid runs surfaced for one (task, arm) in the diff viewer, capped so a
+    high-k experiment doesn't render dozens of near-identical diffs."""
+    return [r for r in results
+            if r.task_id == tid and r.arm is arm and r.itt_valid][:limit]
+
+
+def _work_blob(results: list[RunResult], cfg: ExperimentConfig, arms: list) -> dict:
+    """Per-task wiring data for the DiffViewer (plan 024 §1.3). Carries ONLY numeric
+    counts, DOM ids, status letters and truncation flags -- NEVER diff text, paths or
+    code. The diff DOM is pre-rendered + escaped server-side; this blob just lets the
+    JS pick runs and label the file rail without re-parsing content. (A test asserts no
+    diff substring reaches `window.SKILL_AB`.)"""
+    work: dict = {}
+    for tid in sorted({r.task_id for r in results}):
+        files: list[dict] = []
+        arms_blob: dict = {}
+        truncated: dict = {}
+        for arm in arms:
+            run_ids: list[str] = []
+            for r in _shown_runs(results, tid, arm):
+                pid = _run_patch_id(tid, arm.value, r.run_index)
+                run_ids.append(pid)
+                truncated[pid] = bool(r.diff_truncated)
+                # Re-parse to mirror the rendered file ids/counts -- numbers + a single
+                # status letter only; the path stays in the (escaped) DOM, not here.
+                for fi, pf in enumerate(parse_unified_diff(r.diff)):
+                    files.append({"id": f"f-{pid}-{fi}", "add": pf.add_count,
+                                  "del": pf.del_count, "status": pf.status})
+            arms_blob[arm.value] = {"run_ids": run_ids,
+                                    "rep": run_ids[0] if run_ids else None}
+        work[tid] = {"files": files, "arms": arms_blob, "truncated": truncated}
+    return work
+
+
 def _work_products_html(results: list[RunResult], cfg: ExperimentConfig,
                         arms: list) -> str:
-    """Per-task, per-arm work-product diffs. Escaped server-side (the diffs are the
-    only user-controlled content in the report) so they never reach the JSON blob."""
-    parts = ["<div class='section-h'><h2>Work products</h2>"
-             "<span class='hint'>actual diffs each arm produced</span></div>"]
+    """Per-task interactive diff comparison -- the `.cmp` shell (plan 024 §1.2). Each
+    task gets a sticky toolbar (per-arm run pickers, Compare/Focus tabs, Unified/Split,
+    Wrap, a search box, a JS-filled file rail) over one `.pane` per arm holding that
+    arm's escaped `render_diff` output. The DiffViewer IIFE wires the behavior; every
+    diff byte is escaped server-side and never reaches the JSON blob nor an
+    innerHTML-of-raw path (the diffs are the only user-controlled content here)."""
+    parts = ['<div class="section-h"><h2>Work products</h2>'
+             '<span class="hint">actual diffs each arm produced &mdash; arm vs arm'
+             '</span></div>']
     for tid in sorted({r.task_id for r in results}):
+        et = html.escape(tid)
         counts = " / ".join(
-            f"{sum(1 for r in results if r.task_id == tid and r.arm is arm and r.itt_valid)} "
-            f"{html.escape(arm_label(cfg, arm))}" for arm in arms)
-        parts.append(
-            f"<details class='det'><summary><span class='caret'>{_CARET}</span>"
-            f"{html.escape(tid)}<span class='count'>{counts}</span></summary>"
-            f"<div class='det-body'><div class='cols'>")
+            f"{len(_shown_runs(results, tid, arm))} {html.escape(arm_label(cfg, arm))}"
+            for arm in arms)
+        parts.append(f'<div class="cmp" data-task="{et}">')
+        # ---- toolbar -------------------------------------------------------
+        parts.append('<div class="cmp-bar">')
+        parts.append(f'<div class="cmp-task">{et}<span class="count">{counts}'
+                     '</span></div>')
+        parts.append('<div class="armrun">')
         for arm in arms:
-            runs = [r for r in results
-                    if r.task_id == tid and r.arm is arm and r.itt_valid]
-            parts.append(f"<div class='col'><h3>{html.escape(arm_label(cfg, arm))}</h3>")
+            runs = _shown_runs(results, tid, arm)
+            opts = "".join(
+                f'<option value="{_run_patch_id(tid, arm.value, r.run_index)}">'
+                f"run {r.run_index}</option>" for r in runs)
+            dis = "" if runs else " disabled"
+            parts.append(
+                f'<label class="armpick"><span class="al">'
+                f"{html.escape(arm_label(cfg, arm))}</span>"
+                f'<select class="runsel" data-arm="{arm.value}"{dis}>{opts}'
+                "</select></label>")
+        parts.append("</div>")
+        parts.append(
+            '<div class="modesw" role="tablist" aria-label="comparison mode">'
+            '<button class="mtab" role="tab" data-mode="compare" '
+            'aria-selected="true">Compare</button>'
+            '<button class="mtab" role="tab" data-mode="focus" '
+            'aria-selected="false">Focus</button></div>')
+        parts.append(
+            '<div class="viewsw" role="group" aria-label="diff layout">'
+            '<button class="vbtn" data-act="unified" aria-pressed="true">Unified'
+            '</button><button class="vbtn" data-act="split" aria-pressed="false">'
+            "Split</button></div>")
+        parts.append('<button class="vbtn wrapbtn" data-act="wrap" '
+                     'aria-pressed="false">Wrap</button>')
+        parts.append(f'<input class="diffsearch" type="search" '
+                     f'placeholder="search diffs (/)" '
+                     f'aria-label="search diffs in {et}">')
+        parts.append('<div class="filerail" aria-label="files in this task"></div>')
+        parts.append("</div>")  # .cmp-bar
+        # ---- panes ---------------------------------------------------------
+        parts.append('<div class="panes" data-mode="compare">')
+        for arm in arms:
+            runs = _shown_runs(results, tid, arm)
+            parts.append(
+                f'<div class="pane" data-arm="{arm.value}" data-task="{et}">'
+                f'<div class="pane-h">{html.escape(arm_label(cfg, arm))}</div>')
             if not runs:
-                parts.append("<p class='empty'>(no valid runs)</p>")
-            for r in runs[:3]:
-                pid = re.sub(r"[^0-9A-Za-z]+", "-", f"{tid}-{arm.value}-{r.run_index}")
+                parts.append('<p class="empty">(no valid runs)</p>')
+            for j, r in enumerate(runs):
+                pid = _run_patch_id(tid, arm.value, r.run_index)
+                hide = "" if j == 0 else " hidden"
                 parts.append(
-                    f"<div class='wp-meta'>run {r.run_index} " + _MIDDOT
-                    + f" ${r.cost_usd or 0:.3f} " + _MIDDOT
-                    + f" {r.num_turns or '?'} turns " + _MIDDOT
-                    + f" act={r.skill_activated}</div>"
-                    + render_diff(r.diff, pid, r.diff_truncated))
-            parts.append("</div>")
-        parts.append("</div></div></details>")
+                    f'<div class="diffview" data-run="{pid}"{hide}>'
+                    f'<div class="wp-meta">run {r.run_index} {_MIDDOT} '
+                    f"${r.cost_usd or 0:.3f} {_MIDDOT} {r.num_turns or '?'} turns "
+                    f"{_MIDDOT} act={r.skill_activated}</div>"
+                    f"{render_diff(r.diff, pid, r.diff_truncated)}</div>")
+            parts.append("</div>")  # .pane
+        parts.append("</div>")  # .panes
+        parts.append("</div>")  # .cmp
     return "".join(parts)
 
 

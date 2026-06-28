@@ -828,6 +828,119 @@ def test_render_diff_truncation_marker_and_field_roundtrip():
 
 
 # --------------------------------------------------------------------------
+# Interactive .cmp diff shell + DiffViewer (plan 024 §1.2/§1.3/§1.5, batch 2)
+# --------------------------------------------------------------------------
+
+def _results_with_diff(diff_on: str, diff_off: str = "") -> list:
+    """Two-task results carrying real git diffs on the ON arm (so the parsed renderer
+    + work blob have files to chew on)."""
+    res = _two_task_results()
+    for r in res:
+        r.diff = diff_on if r.arm is Arm.SKILL_ON else (diff_off or diff_on)
+    return res
+
+
+def test_work_products_renders_cmp_shell_per_task():
+    cfg = _cfg()
+    man = h.experiment_manifest(cfg, timestamp=1.0)
+    diff = ("diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+            "@@ -1,1 +1,1 @@\n-old\n+new\n")
+    doc = h.build_html_report(_results_with_diff(diff), h.Preflight(), cfg, man)
+    # one .cmp shell per task (A, B), each with the toolbar + panes scaffold
+    assert doc.count('class="cmp"') == 2
+    for needle in ('class="cmp-bar"', 'class="armrun"', 'class="runsel"',
+                   'class="modesw"', 'data-mode="compare"', 'class="viewsw"',
+                   'data-act="split"', 'wrapbtn', 'class="diffsearch"',
+                   'class="filerail"', 'class="panes"', 'class="pane"',
+                   'data-arm="skill_on"', 'data-arm="skill_off"',
+                   'class="diffview"'):
+        assert needle in doc, needle
+    # the diff body is still rendered + escaped per the batch-1 engine
+    assert 'class="row add"' in doc and 'class="tx"' in doc
+
+
+def test_work_blob_carries_only_ids_counts_flags_never_diff_text():
+    # LOAD-BEARING (plan 024 §1.4): the JSON blob must carry numbers/ids/flags only.
+    # Plant a unique token in BOTH the diff code and the file path; it must be ABSENT
+    # from window.SKILL_AB yet present (escaped) in the server-rendered DOM.
+    cfg = _cfg()
+    man = h.experiment_manifest(cfg, timestamp=1.0)
+    token = "ZQX_PLANTED_SECRET_4242"
+    diff = (f"diff --git a/{token}_path.py b/{token}_path.py\n"
+            f"--- a/{token}_path.py\n+++ b/{token}_path.py\n"
+            f"@@ -1,1 +1,1 @@\n-was = '{token}_old'\n+now = '{token}_new'\n")
+    doc = h.build_html_report(_results_with_diff(diff), h.Preflight(), cfg, man)
+    blob_text = re.search(r"window\.SKILL_AB=(.+?);\n\(function\(\)\{",
+                          doc, re.S).group(1)
+    assert token not in blob_text, "diff text/path leaked into window.SKILL_AB"
+    assert token in doc, "diff token should still appear (escaped) in the DOM"
+    data = json.loads(blob_text)
+    work = data["work"]
+    assert set(work) == {"A", "B"}
+    t = work["A"]
+    assert set(t) == {"files", "arms", "truncated"}
+    # files: only id/add/del/status keys, status a single letter, counts ints
+    f0 = t["files"][0]
+    assert set(f0) == {"id", "add", "del", "status"}
+    assert f0["id"].startswith("f-") and isinstance(f0["add"], int)
+    assert f0["status"] in ("A", "M", "D", "R")
+    # the blob's file id must address a real node in the rendered DOM
+    assert f'id="{f0["id"]}"' in doc
+    # arms keyed by arm.value, each with run_ids + a representative id
+    assert set(t["arms"]) == {"skill_on", "skill_off"}
+    on = t["arms"]["skill_on"]
+    assert set(on) == {"run_ids", "rep"} and on["rep"] == on["run_ids"][0]
+    # truncated is a flag map keyed by run id
+    assert all(isinstance(v, bool) for v in t["truncated"].values())
+
+
+def test_work_blob_honours_truncation_flag():
+    cfg = _cfg()
+    man = h.experiment_manifest(cfg, timestamp=1.0)
+    diff = "diff --git a/x.py b/x.py\n@@ -1,1 +1,1 @@\n-a\n+b\n"
+    res = _results_with_diff(diff)
+    for r in res:                      # mark the ON arm's diffs truncated
+        if r.arm is Arm.SKILL_ON:
+            r.diff_truncated = True
+    data = _skill_ab_blob(h.build_html_report(res, h.Preflight(), cfg, man))
+    on_rep = data["work"]["A"]["arms"]["skill_on"]["rep"]
+    off_rep = data["work"]["A"]["arms"]["skill_off"]["rep"]
+    assert data["work"]["A"]["truncated"][on_rep] is True
+    assert data["work"]["A"]["truncated"][off_rep] is False
+
+
+def test_diffviewer_iife_is_wired_and_escape_safe():
+    # The interaction layer must be invoked beside the existing wiring and must use
+    # the escape-safe primitives (clone/Range/textContent), NEVER innerHTML of diff.
+    cfg = _cfg()
+    man = h.experiment_manifest(cfg, timestamp=1.0)
+    doc = h.build_html_report(_two_task_results(), h.Preflight(), cfg, man)
+    assert "function DiffViewer(" in doc and "\n  DiffViewer();\n" in doc
+    script = re.search(r"<script>(.+?)</script>", doc, re.S).group(1)
+    diffviewer = script[script.index("function DiffViewer("):]
+    # escape-safe primitives present
+    for needle in ("cloneNode(true)", "surroundContents", ".textContent",
+                   "execCommand", "navigator.clipboard", "localStorage",
+                   "IntersectionObserver", "requestAnimationFrame",
+                   "createTreeWalker"):
+        assert needle in diffviewer, needle
+    # the DiffViewer body must never ASSIGN innerHTML (would defeat per-segment escaping)
+    assert re.search(r"innerHTML\s*=", diffviewer) is None
+
+
+def test_three_arm_report_renders_a_pane_per_arm():
+    cfg = _cfg(skill_name="skill-a", skill_b_src=Path("/s/b"), skill_b_name="skill-b")
+    man = h.experiment_manifest(cfg, timestamp=1.0, offline=True)
+    doc = h.build_html_report(_three_arm_results(), h.Preflight(), cfg, man)
+    # arm-symmetric: a pane (and run picker) for each of the three arms
+    for av in ("skill_on", "skill_b", "skill_off"):
+        assert f'data-arm="{av}"' in doc
+    data = _skill_ab_blob(doc)
+    some_task = next(iter(data["work"].values()))
+    assert set(some_task["arms"]) == {"skill_on", "skill_b", "skill_off"}
+
+
+# --------------------------------------------------------------------------
 # Cost / power (plan 006)
 # --------------------------------------------------------------------------
 
