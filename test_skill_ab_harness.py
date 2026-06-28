@@ -526,7 +526,9 @@ def test_gallery_renders_two_summaries():
     out = h.build_gallery_html([{"summary": sx, "report_href": "x/report.html"},
                                 {"summary": sy, "report_href": None}])
     assert "skill-x" in out and "skill-y" in out
-    assert "self-reported" in out and "<svg" in out
+    # gallery cards now show a clean verdict chip (delta-chip), not the raw badge SVG
+    assert "self-reported" in out and "delta-chip" in out
+    assert "open report" in out          # the linked entry surfaces its report link
 
 
 def test_gallery_skips_unsupported_schema():
@@ -1067,6 +1069,30 @@ def test_diffviewer_iife_is_wired_and_escape_safe():
                    "createTreeWalker"):
         assert needle in diffviewer, needle
     # the DiffViewer body must never ASSIGN innerHTML (would defeat per-segment escaping)
+    assert re.search(r"innerHTML\s*=", diffviewer) is None
+
+
+def test_minimap_canvas_per_pane_and_painted_from_data_k_ints():
+    # Change-density minimap (graft: Blink): one <canvas.minimap> per pane, painted
+    # client-side from data-k ints + computed colors -- never diff text, never
+    # innerHTML (escape-safe by construction).
+    cfg = _cfg()
+    man = h.experiment_manifest(cfg, timestamp=1.0)
+    diff = ("diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+            "@@ -1,1 +1,1 @@\n-old\n+new\n")
+    doc = h.build_html_report(_results_with_diff(diff), h.Preflight(), cfg, man)
+    # exactly one minimap canvas per server-rendered pane
+    assert doc.count('class="minimap"') == doc.count('class="pane"')
+    assert doc.count('class="minimap"') > 0
+    script = re.search(r"<script>(.+?)</script>", doc, re.S).group(1)
+    diffviewer = script[script.index("function DiffViewer("):]
+    # the paint path reads data-k INTEGERS (parseInt), paints a <canvas> 2d context,
+    # tracks a viewport rect on scroll, and scrubs scrollTop by pointer drag
+    for needle in ("function mmPaint(", '.querySelector(".minimap")', 'getContext("2d")',
+                   'parseInt(rows[j].getAttribute("data-k")', "pointerdown",
+                   "pane.scrollTop =", "getComputedStyle"):
+        assert needle in diffviewer, needle
+    # still no innerHTML assignment anywhere in the body (minimap stays escape-safe)
     assert re.search(r"innerHTML\s*=", diffviewer) is None
 
 

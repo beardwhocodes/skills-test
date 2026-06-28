@@ -26,6 +26,10 @@ import skill_ab_harness as h
 _APP_CSS = """
   html,body{height:100%}
   body.app-body{background-attachment:fixed}
+  /* app links are navigation, not prose: never browser-underlined; the design
+     conveys interactivity via color/hover, not default underlines. */
+  a{color:inherit; text-decoration:none}
+  a:focus-visible{border-radius:var(--radius-xs)}
 
   /* ---------- shell layout ---------- */
   .app{display:grid; grid-template-columns:1fr; min-height:100vh}
@@ -164,17 +168,19 @@ _APP_CSS = """
     color:var(--ink); overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap}
   .run-card .rc-title .vs{color:var(--faint); font-weight:var(--fw-normal); padding:0 .3em}
-  .run-card .badge-wrap{min-height:20px}
-  .run-card .badge-wrap img{display:block; height:20px; max-width:100%}
   .run-card .rc-meta{display:flex; flex-wrap:wrap; gap:6px 14px;
     font-size:var(--text-xs); color:var(--muted)}
   .run-card .rc-meta b{color:var(--ink-2); font-weight:var(--fw-medium)}
 
   /* ---------- pills ---------- */
-  .pill{display:inline-flex; align-items:center; gap:6px; font-size:var(--text-xs);
+  /* width/height/justify reset: the harness report's _HTML_STYLE defines a DIFFERENT
+     `.pill` (a 17px-square scorecard status chip) and is concatenated before this; its
+     width:17px would otherwise collapse these text verdict pills. Be self-contained. */
+  .pill{display:inline-flex; align-items:center; justify-content:flex-start; gap:6px;
+    width:auto; height:auto; font-size:var(--text-xs); font-family:var(--sans);
     font-weight:var(--fw-bold); letter-spacing:.02em; padding:3px 9px; border-radius:var(--radius-pill);
     border:1px solid var(--line-2); background:var(--pill-grey-bg);
-    color:var(--pill-grey-ink); white-space:nowrap}
+    color:var(--pill-grey-ink); white-space:nowrap; flex:none}
   .pill .dot{width:6px; height:6px; border-radius:50%; background:currentColor}
   .pill.good{color:var(--good); background:var(--good-bg);
     border-color:var(--good-line)}
@@ -700,17 +706,15 @@ _APP_JS = r"""
     var dest = (r.status === "running")
       ? "#/run/" + encodeURIComponent(r.id)
       : "#/results/" + encodeURIComponent(r.id);
-    var badge = r.badge_url
-      ? E("img", {src:withTok(r.badge_url), alt:"verdict badge"})
-      : null;
     var statusPill = (r.status && r.status !== "done")
       ? verdictPill(r.status) : null;
+    // The verdict pill conveys the outcome; the raw shields badge.svg is redundant
+    // noise in a card (it lives on the Results page for sharing). Title left, pill right.
     var card = E("a", {class:"card run-card", href:dest}, [
       E("div", {class:"rc-top"}, [
         skillTitle(r.skill_a, r.skill_b),
         verdictPill(r.verdict)
       ]),
-      E("div", {class:"badge-wrap"}, badge),
       E("div", {class:"rc-meta"}, [
         E("span", {}, [E("b", {text:"target "}), (r.target || ".")]),
         E("span", {}, [E("b", {text:"usage "}), fmtUsage(r.cost_usd)]),

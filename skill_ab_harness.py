@@ -2338,15 +2338,22 @@ def _gallery_unsupported_card(summary: dict) -> str:
 
 def _gallery_card(summary: dict, href: str | None) -> str:
     verdict = _gallery_verdict_from_summary(summary)
-    metric = summary.get("primary_metric", "?")
-    badge = render_badge_svg(metric, verdict) if verdict else ""
+    metric = html.escape(str(summary.get("primary_metric", "?")))
     skill = html.escape(str(summary.get("manifest", {}).get("skill_name", "?")))
     pair = html.escape(str(summary.get("primary_pair", "")))
-    link = (f"<a href='{html.escape(href)}'>open report →</a>" if href
+    # A clean verdict chip, not the raw shields badge SVG (which reads as a crude grey
+    # bar inside a card). The badge.svg stays the shareable artifact on the report page.
+    if verdict:
+        tone = {"brightgreen": " good", "red": " bad"}.get(verdict["color"], "")
+        chip = (f"<span class='delta-chip{tone}'>{html.escape(verdict['label'])} "
+                f"{verdict['point'] * 100:+.0f}%</span>")
+    else:
+        chip = "<span class='delta-chip'>inconclusive</span>"
+    link = (f"<a class='lnk' href='{html.escape(href)}'>open report →</a>" if href
             else "<span class='note'>no report linked</span>")
     return (f"<div class='arm'><div class='arm-head'><span class='arm-name'>{skill}"
-            f"</span></div><div class='badge'>{badge}</div>"
-            f"<p class='note'>{pair} · {link}</p></div>")
+            f"</span>{chip}</div>"
+            f"<p class='note'>{pair} {_MIDDOT} {metric} {_MIDDOT} {link}</p></div>")
 
 
 def build_gallery_html(entries: list[dict]) -> str:
@@ -2748,7 +2755,9 @@ _HTML_STYLE = """
   .num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1}
   .mono{font-family:var(--mono)}
   h1,h2,h3{margin:0; letter-spacing:var(--tracking)}
-  a{color:inherit}
+  a{color:inherit; text-decoration:none}
+  a.lnk{color:var(--accent); font-weight:var(--fw-medium)}
+  a.lnk:hover{text-decoration:underline}
   /* a11y: a single keyboard-focus ring for every interactive element (§4) */
   :where(a,button,summary,[tabindex],select,input):focus-visible{outline:none;
     box-shadow:0 0 0 3px var(--accent-ring); border-radius:var(--radius-xs)}
@@ -3180,9 +3189,21 @@ _HTML_STYLE = """
   .dod-n.b{color:var(--diverge)}
 
   .panes{display:flex; gap:0}
-  .pane{flex:1 1 0; min-width:0; max-height:72vh; overflow:auto;
+  .pane{position:relative; flex:1 1 0; min-width:0; max-height:72vh; overflow:auto;
     border-right:1px solid var(--line)}
   .pane:last-child{border-right:none}
+  /* change-density minimap (graft: Blink): a 0-height sticky wrapper pins the
+     canvas to the scrollport; JS paints it from data-k ints + computed colors and
+     scrubs scrollTop. Kept clear of diff text via a right gutter on the content. */
+  .mm-wrap{position:sticky; top:0; height:0; z-index:4}
+  .minimap{position:absolute; top:0; right:0; width:12px; display:block;
+    cursor:ns-resize; touch-action:none;
+    background:color-mix(in srgb,var(--ink) 3%, transparent);
+    border-left:1px solid var(--line)}
+  .pane.no-mm .minimap{display:none}
+  .cmp .pane .pane-h, .cmp .pane .file-head, .cmp .pane .hunk-head,
+  .cmp .pane .fold, .cmp .pane .trunc, .cmp .pane .wp-meta,
+  .cmp .pane .row .tx, .cmp .pane .splitgrid{padding-right:16px}
   .pane-h{position:sticky; top:0; z-index:3; padding:6px 10px;
     font-family:var(--mono); font-size:var(--text-xs); font-weight:var(--fw-medium); color:var(--ink-2);
     background:var(--card-2); border-bottom:1px solid var(--line)}
@@ -4191,6 +4212,7 @@ _HTML_SCRIPT = r"""(function(){
       });
       clearMarks(cmp);
       refresh(cmp);
+      mmPaintAll(cmp);
     }
 
     /* ---- mode / focus ---- */
@@ -4203,6 +4225,7 @@ _HTML_SCRIPT = r"""(function(){
       });
       lsSet("skillab:mode:" + cmp.getAttribute("data-task"), mode);
       refresh(cmp);
+      mmPaintAll(cmp);
     }
     function setFocusPane(cmp, pane){
       if (!pane || cmp._focus === pane) return;
@@ -4217,6 +4240,7 @@ _HTML_SCRIPT = r"""(function(){
       var b = cmp.querySelector(".wrapbtn");
       if (b) b.setAttribute("aria-pressed", on ? "true" : "false");
       lsSet("skillab:wrap", on ? "1" : "0");
+      mmPaintAll(cmp);
     }
     function toggleWrap(cmp){ setWrap(cmp, !cmp.classList.contains("wrap")); }
 
@@ -4303,6 +4327,7 @@ _HTML_SCRIPT = r"""(function(){
     function setSplit(cmp, on){
       list(cmp, ".file").forEach(function(f){ setFileSplit(f, on); });
       reflectSplit(cmp);
+      mmPaintAll(cmp);
     }
     function toggleSplit(cmp){ setSplit(cmp, !cmpSplitOn(cmp)); }
     function restoreSplit(cmp){
@@ -4417,6 +4442,112 @@ _HTML_SCRIPT = r"""(function(){
           });
         });
       });
+    }
+
+    /* ---- change-density minimap (graft: Blink) ----
+       Paints a vertical strip from each visible pane's .row data-k ints (0 ctx /
+       1 add / 2 del / 3 divergence) compressed into the viewport height, with a
+       viewport rectangle and click/drag scrub. Reads ONLY data-k integers and
+       computed CSS colors -- never diff text, never innerHTML. Repaints once per
+       layout change (mode/run/wrap/split/resize); scroll only re-blits a cached
+       strip + the viewport rect (rAF-throttled), so it stays cheap. */
+    function mmColors(pane){
+      var cs = window.getComputedStyle(pane);
+      function v(name, def){ var x = cs.getPropertyValue(name); x = x && x.trim(); return x || def; }
+      return { 0: v("--line", "#ccc"), 1: v("--good", "#15803d"),
+               2: v("--bad", "#c01f1f"), 3: v("--diverge", "#9a6b00"),
+               accent: v("--accent", "#3b5cdf") };
+    }
+    function mmPaint(pane){
+      var canvas = pane.querySelector(".minimap");
+      if (!canvas) return;
+      var sh = pane.scrollHeight, ch = pane.clientHeight;
+      if (ch <= 0 || sh - ch <= 1){           // nothing to navigate -> hide it
+        pane.classList.add("no-mm"); pane._mmComposite = null; return;
+      }
+      pane.classList.remove("no-mm");
+      var view = visibleView(pane);
+      var rows = view ? list(view, ".row") : [];
+      var cssW = canvas.clientWidth || 12, cssH = ch;
+      canvas.width = cssW; canvas.height = cssH; canvas.style.height = cssH + "px";
+      var off = pane._mmOff || (pane._mmOff = document.createElement("canvas"));
+      off.width = cssW; off.height = cssH;
+      var octx = off.getContext("2d");
+      octx.clearRect(0, 0, cssW, cssH);
+      var col = mmColors(pane);
+      // one pass of reads (no interleaved writes -> no layout thrash)
+      var n = rows.length, paneTop = pane.getBoundingClientRect().top;
+      var st = pane.scrollTop, geo = new Array(n), measured = 0;
+      for (var i = 0; i < n; i++){
+        var rc = rows[i].getBoundingClientRect();
+        geo[i] = { top: rc.top - paneTop + st, h: rc.height };
+        measured += rc.height;
+      }
+      for (var j = 0; j < n; j++){
+        var k = parseInt(rows[j].getAttribute("data-k"), 10);
+        if (isNaN(k)) k = 0;
+        var y, bh;
+        if (measured > 1){                    // scrollHeight-proportional bands
+          y = (geo[j].top / sh) * cssH;
+          bh = Math.max(1, (geo[j].h / sh) * cssH);
+        } else {                              // rows hidden (e.g. split) -> equal slices
+          y = (j / n) * cssH; bh = Math.max(1, cssH / n);
+        }
+        octx.globalAlpha = (k === 0) ? 0.4 : 0.92;
+        octx.fillStyle = col[k] || col[0];
+        octx.fillRect(0, y, cssW, bh);
+      }
+      octx.globalAlpha = 1;
+      pane._mmComposite = function(){
+        var c = canvas.getContext("2d");
+        c.clearRect(0, 0, cssW, cssH);
+        c.drawImage(off, 0, 0);
+        var SH = pane.scrollHeight, CH = pane.clientHeight, ST = pane.scrollTop;
+        var vy = SH > 0 ? (ST / SH) * cssH : 0;
+        var vh = SH > 0 ? (CH / SH) * cssH : cssH;
+        c.globalAlpha = 0.14; c.fillStyle = col.accent;
+        c.fillRect(0, vy, cssW, vh);
+        c.globalAlpha = 1; c.strokeStyle = col.accent; c.lineWidth = 1;
+        c.strokeRect(0.5, Math.max(0, vy) + 0.5, cssW - 1, Math.max(2, vh) - 1);
+      };
+      pane._mmComposite();
+    }
+    function mmComposite(pane){ if (pane._mmComposite) pane._mmComposite(); }
+    function mmPaintAll(cmp){ panesOf(cmp).forEach(mmPaint); }
+    function mmScrubTo(pane, clientY){
+      var canvas = pane.querySelector(".minimap");
+      if (!canvas) return;
+      var rect = canvas.getBoundingClientRect();
+      var frac = rect.height > 0 ? (clientY - rect.top) / rect.height : 0;
+      frac = Math.max(0, Math.min(1, frac));
+      pane.scrollTop = frac * (pane.scrollHeight - pane.clientHeight);
+    }
+    function mmWire(pane){
+      var canvas = pane.querySelector(".minimap");
+      if (!canvas) return;
+      pane.addEventListener("scroll", function(){   // re-blit cached strip + rect
+        if (pane._mmRaf) return;
+        pane._mmRaf = requestAnimationFrame(function(){
+          pane._mmRaf = null; mmComposite(pane);
+        });
+      });
+      var dragging = false;
+      canvas.addEventListener("pointerdown", function(e){
+        dragging = true;
+        if (canvas.setPointerCapture){ try { canvas.setPointerCapture(e.pointerId); } catch (x) {} }
+        mmScrubTo(pane, e.clientY); e.preventDefault();
+      });
+      canvas.addEventListener("pointermove", function(e){
+        if (dragging){ mmScrubTo(pane, e.clientY); e.preventDefault(); }
+      });
+      function end(e){
+        dragging = false;
+        if (canvas.releasePointerCapture && e.pointerId != null){
+          try { canvas.releasePointerCapture(e.pointerId); } catch (x) {}
+        }
+      }
+      canvas.addEventListener("pointerup", end);
+      canvas.addEventListener("pointercancel", end);
     }
 
     /* ---- copy (clipboard API -> hidden-textarea execCommand fallback) ---- */
@@ -4646,10 +4777,17 @@ _HTML_SCRIPT = r"""(function(){
 
       syncScroll(cmp);
       refresh(cmp);
+      panes.forEach(mmWire);
+      mmPaintAll(cmp);
     }
 
     cmps.forEach(initCmp);
     document.addEventListener("keydown", onKey);
+    var rzRaf;
+    window.addEventListener("resize", function(){   // layout changed -> repaint strips
+      if (rzRaf) return;
+      rzRaf = requestAnimationFrame(function(){ rzRaf = null; cmps.forEach(mmPaintAll); });
+    });
   }
 
   mount();
@@ -5197,6 +5335,8 @@ def _work_products_html(results: list[RunResult], cfg: ExperimentConfig,
             runs = _shown_runs(results, tid, arm)
             parts.append(
                 f'<div class="pane" data-arm="{arm.value}" data-task="{et}">'
+                '<div class="mm-wrap" aria-hidden="true">'
+                '<canvas class="minimap" width="12" height="0"></canvas></div>'
                 f'<div class="pane-h">{html.escape(arm_label(cfg, arm))}</div>')
             if not runs:
                 parts.append('<p class="empty">(no valid runs)</p>')
