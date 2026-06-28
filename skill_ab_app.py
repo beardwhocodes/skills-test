@@ -297,9 +297,6 @@ _APP_CSS = """
   .back-link{display:inline-flex; align-items:center; gap:6px; font-size:var(--text-sm);
     color:var(--muted); text-decoration:none; font-weight:var(--fw-normal); margin-bottom:8px}
   .back-link:hover{color:var(--ink)}
-  .md-box{font-family:var(--mono); font-size:var(--text-xs); color:var(--ink-2);
-    background:var(--card-2); border:1px solid var(--line); border-radius:var(--radius-sm);
-    padding:9px 11px; word-break:break-all; margin-top:8px}
 
   /* ---------- settings ---------- */
   .kv{display:grid; grid-template-columns:170px 1fr; gap:11px 16px;
@@ -1345,7 +1342,6 @@ _APP_JS = r"""
   // ===================== RESULTS =====================
   function viewResults(id){
     var reportUrl = "/api/runs/" + encodeURIComponent(id) + "/report";
-    var badgeUrl = "/api/runs/" + encodeURIComponent(id) + "/badge";
     view.appendChild(E("a", {class:"back-link", href:"#/"}, "← Dashboard"));
     view.appendChild(E("div", {class:"sec-h"}, [
       E("h2", {text:"Results"}),
@@ -1390,7 +1386,6 @@ _APP_JS = r"""
           target:"_blank", rel:"noopener"}, "Open full report →"),
         E("a", {class:"btn", href:"#/"}, "Back to Dashboard")
       ]));
-      slot.appendChild(badgeSection(card));
       slot.appendChild(E("p", {class:"hint", style:"margin-top:12px",
         text:"The full report — interactive diffs, per-arm charts, the treatment "
           + "panel, and the blind-judge panel — opens in a new tab."}));
@@ -1430,38 +1425,6 @@ _APP_JS = r"""
       }).catch(function(){ deltaEl.remove(); validEl.remove(); });
     }
 
-    function badgeSection(card){
-      // Item 10: only build the badge <img> when the run wrote one (verdict
-      // truthy → badge_url present); otherwise show a neutral pill, mirroring
-      // runCard's guard. An <img> onerror swaps the same pill + locks Copy.
-      var hasBadge = !!(card && card.badge_url);
-      var body = E("div", {class:"adv-body"});
-      if(hasBadge){
-        var img = E("img", {src:withTok(badgeUrl), alt:"verdict badge",
-          style:"height:20px"});
-        var pill = E("span", {class:"pill", style:"display:none"},
-          [E("span", {class:"dot"}), "inconclusive — no badge"]);
-        var copyBtn = E("button", {class:"btn copybtn", onclick:copyMd},
-          "Copy badge markdown");
-        img.addEventListener("error", function(){
-          img.style.display = "none";
-          pill.style.display = "inline-flex";
-          copyBtn.disabled = true;
-        });
-        body.appendChild(E("div", {class:"row",
-          style:"justify-content:space-between"}, [
-          E("div", {class:"row"}, [img, pill]), copyBtn]));
-        body.appendChild(E("div", {class:"md-box", text:mdText()}));
-      } else {
-        body.appendChild(E("span", {class:"pill"},
-          [E("span", {class:"dot"}), "inconclusive — no badge"]));
-      }
-      return E("details", {class:"advanced", style:"margin-bottom:14px"}, [
-        E("summary", {}, "Verdict badge & sharing"),
-        body
-      ]);
-    }
-
     function renderUnavailable(status){
       clear(slot);
       var msgs = {
@@ -1498,23 +1461,6 @@ _APP_JS = r"""
       if(est.ci_low == null || est.ci_high == null) return "";
       return "  95% CI [" + signedPct(est.ci_low) + ", " +
         signedPct(est.ci_high) + "]";
-    }
-    function mdText(){
-      // Never embed the session token in shareable markdown (it's a full-capability
-      // secret, and the badge is meant to be pasted into a README/PR). Point at the
-      // on-disk badge.svg the engine writes next to the run; commit that for sharing.
-      return "![skill-ab](badge.svg)  <!-- " + location.origin
-        + badgeUrl + " (local only; commit run badge.svg to share) -->";
-    }
-    function copyMd(e){
-      var btn = e.currentTarget, txt = mdText();
-      var done = function(){
-        btn.textContent = "Copied!";
-        setTimeout(function(){ btn.textContent = "Copy badge markdown"; }, 1400);
-      };
-      if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(txt).then(done, function(){ done(); });
-      } else { done(); }
     }
   }
 
