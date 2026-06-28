@@ -249,6 +249,8 @@ _APP_CSS = """
   .cell.valid .c-st{color:var(--good)}
   .cell.invalid{border-color:var(--bad-line); background:var(--bad-bg)}
   .cell.invalid .c-st{color:var(--bad)}
+  .cell.skipped{border-color:var(--line); background:var(--card-2)}
+  .cell.skipped .c-st{color:var(--muted)}
   .cell.contaminated{border-color:#f0d488; background:#fff3d6}
   .cell.contaminated .c-st{color:#a5790f}
   @media (prefers-color-scheme:dark){
@@ -709,6 +711,9 @@ _APP_JS = r"""
       E("option", {value:"inject"}, "inject (append-system-prompt)"),
       E("option", {value:"worktree"}, "worktree (install SKILL.md)")
     ]);
+    var ceilingEl = E("input", {class:"inp", id:"f-ceiling", name:"cost_ceiling_usd",
+      type:"number", min:"0", step:"0.5", inputmode:"decimal", autocomplete:"off",
+      placeholder:"off", "aria-label":"stop after total usage"});
     var judge = E("input", {type:"checkbox", id:"f-judge", name:"judge",
       "aria-label":"blind judge"});
     var startBtn = E("button", {class:"btn btn-primary", disabled:"",
@@ -736,6 +741,7 @@ _APP_JS = r"""
         k: parseInt(kSlider.value, 10),
         isolation: iso.value,
         judge: judge.checked,
+        cost_ceiling_usd: ceilingEl.value.trim() || null,
         demo: !!demo
       };
     }
@@ -759,7 +765,7 @@ _APP_JS = r"""
       refreshStart();
     }
     [skillA, skillB, target, iso, judge, modelA, modelB, includeControl, runnerB,
-     promptEl].forEach(function(n){
+     promptEl, ceilingEl].forEach(function(n){
       n.addEventListener("input", invalidate);
       n.addEventListener("change", invalidate);
     });
@@ -858,6 +864,10 @@ _APP_JS = r"""
             E("div", {class:"krow"}, [kSlider, kVal])),
           field("Isolation", "how the skill is delivered", iso)
         ]),
+        field("Stop after ~$ total (optional)",
+          "soft cap on the usage proxy: stops STARTING new runs past this — " +
+          "in-flight runs still finish, so actual usage can exceed it. Blank = off.",
+          ceilingEl),
         E("div", {class:"field"}, [
           E("label", {class:"switch"}, [
             includeControl, E("span", {class:"track"}, E("span", {class:"knob"})),
@@ -1050,6 +1060,10 @@ _APP_JS = r"""
         bits.push("usage " + fmtUsage(ev.cost_usd));
         bits.push((ev.diff_lines || 0) + " diff lines");
         appendLine(ev.label, "done — " + bits.join(" · "), "sys");
+      },
+      run_skipped: function(ev){
+        setCell(ev.label, "skipped");
+        appendLine(ev.label, "skipped — " + (ev.reason || "cost ceiling reached"), "sys");
       },
       cost: function(ev){
         spent = ev.spent_usd != null ? ev.spent_usd : spent;

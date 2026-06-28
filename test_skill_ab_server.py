@@ -284,6 +284,31 @@ def test_build_run_config_runner_b_preset_only_arm_a_and_control_stay_claude():
         h.resolve_skill, h.resolve_target = orig_skill, orig_target
 
 
+def test_build_run_config_parses_and_validates_cost_ceiling():
+    orig_skill, orig_target = h.resolve_skill, h.resolve_target
+    h.resolve_skill = lambda name: Path(f"/fake/skills/{name}/SKILL.md")
+    h.resolve_target = lambda target, prompt: (Path("/fake/repo"), "HEAD",
+                                               prompt or "x", None, None)
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            def mk(v):
+                return s._build_run_config(
+                    {"skill_a": "a", "target": ".", "prompt": "x",
+                     "cost_ceiling_usd": v}, Path(td))[0]
+            assert mk("5").cost_ceiling_usd == 5.0
+            assert mk("").cost_ceiling_usd is None        # blank = off
+            assert mk(None).cost_ceiling_usd is None
+            assert mk("9999").cost_ceiling_usd == 1000.0  # clamped
+            for bad in ("-1", "0", "abc"):
+                try:
+                    mk(bad)
+                    assert False, f"should reject {bad!r}"
+                except ValueError:
+                    pass
+    finally:
+        h.resolve_skill, h.resolve_target = orig_skill, orig_target
+
+
 def test_skills_endpoint_exposes_runner_presets():
     with _serve() as (port, _):
         st, data = _request(port, "GET", "/api/skills", token=TOKEN)

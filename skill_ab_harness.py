@@ -1070,6 +1070,8 @@ async def execute_run(task: Task, arm: Arm, idx: int, cfg: ExperimentConfig,
         # acquire a slot, so the ceiling actually bounds spend (checking before the
         # semaphore is a no-op — gather steps every coroutine past it at once).
         if budget is not None and budget["stop"]:
+            _emit(on_event, {"type": "run_skipped", "label": label,
+                             "reason": "cost ceiling reached"})
             return _failed_result(task, arm, idx, cfg, "budget ceiling reached", _SKIPPED_ERR)
         _emit(on_event, {"type": "run_start", "label": label})
         wt = Worktree(cfg, label)

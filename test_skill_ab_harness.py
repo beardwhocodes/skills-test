@@ -898,6 +898,30 @@ def test_budget_guard_bounds_spend():
     assert sum((r.cost_usd or 0) for r in results) <= 0.25 + 0.05 * cfg.max_concurrency
 
 
+def test_execute_run_emits_run_skipped_when_budget_tripped():
+    # A pre-tripped budget must make execute_run emit a run_skipped event (so the live
+    # grid marks the cell instead of leaving it stuck on "pending") AND return a
+    # _SKIPPED_ERR result. The gate returns BEFORE any worktree/git work, so the real
+    # execute_run is driven here with no git/claude needed.
+    import asyncio
+    cfg = _cfg()
+    task = h.Task(id="a", prompt="x")
+    events: list[dict] = []
+
+    async def drive():
+        sem = asyncio.Semaphore(1)
+        return await h.execute_run(task, Arm.SKILL_ON, 0, cfg, [], h.Preflight(),
+                                   sem, budget={"spent": 9.9, "stop": True},
+                                   on_event=events.append)
+
+    res = asyncio.run(drive())
+    assert res.error == h._SKIPPED_ERR
+    skipped = [e for e in events if e.get("type") == "run_skipped"]
+    assert len(skipped) == 1 and skipped[0]["label"] == "a-skill_on-0"
+    assert skipped[0]["reason"]                       # carries a human reason for the UI
+    assert not any(e.get("type") == "run_start" for e in events)   # a skip never starts
+
+
 def test_head_to_head_requires_both_skill_b_fields():
     try:
         _cfg(skill_b_src=Path("/s/b"))      # name missing -> degenerate; must raise

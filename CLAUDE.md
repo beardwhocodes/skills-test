@@ -123,6 +123,12 @@ The harness runs N arms, each defined by "install this skill (or nothing)".
       preset names only). See "Arms (generalised)" above + plan 022. Deferred: aider
       preset, a parsed codex cost/turns adapter, a runner control for arm A/control,
       Docker-sandboxing the command runner for untrusted configs.
+- [x] Optional total-spend ceiling in the serve UI (plan 023) — the New-run form's
+      *Stop after ~$N* field plumbs `cost_ceiling_usd` through `_build_run_config`;
+      it's a SOFT cap that declines to START new runs past the threshold (in-flight
+      runs finish, so usage can overshoot by up to one wave), off by default. The
+      engine emits a `run_skipped` event so ceiling-skipped cells don't hang on
+      "pending". It is NOT read by `_build_estimate_config` (run count is unaffected).
 
 ## Tests
 `python3 test_skill_ab_harness.py` (stdlib-only; no `claude`/`git` needed) covers

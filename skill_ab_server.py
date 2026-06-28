@@ -303,6 +303,19 @@ def _build_run_config(req: dict, run_dir: Path) -> tuple[h.ExperimentConfig, lis
     # never a raw command template, which would be remote code execution over loopback.
     # runner_a/runner_off are never read at all: arm A is always claude+skill and the
     # control is always claude. Raw command templates remain TOML/CLI-only.
+    # Optional total-spend ceiling (usage proxy). Off when absent/blank. Positive number
+    # only; clamp to a sane max so a typo can't disable the guard. Caps NEW runs, never
+    # kills in-flight ones (see plan 023).
+    ceiling_raw = req.get("cost_ceiling_usd")
+    cost_ceiling = None
+    if ceiling_raw not in (None, ""):
+        try:
+            cost_ceiling = float(ceiling_raw)
+        except (TypeError, ValueError):
+            raise ValueError("cost_ceiling_usd must be a number")
+        if cost_ceiling <= 0:
+            raise ValueError("cost_ceiling_usd must be a positive number")
+        cost_ceiling = min(cost_ceiling, 1000.0)
     cfg = h.ExperimentConfig(
         repo_path=repo, base_ref=base_ref,
         skill_src=md_a.parent, skill_name=skill_a,
@@ -313,6 +326,7 @@ def _build_run_config(req: dict, run_dir: Path) -> tuple[h.ExperimentConfig, lis
         include_control=bool(req.get("include_control", True)),
         k=max(1, min(20, int(req.get("k") or 3))),   # clamp: UI caps 1-10; never runaway
         judge_enabled=bool(req.get("judge")),
+        cost_ceiling_usd=cost_ceiling,
         disallowed_tools=deny, isolation=isolation, results_dir=run_dir)
     task = h.Task(id="task", prompt=task_prompt, setup_cmd=setup, test_cmd=test)
     return cfg, [task]

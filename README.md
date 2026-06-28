@@ -38,6 +38,9 @@ Pick skills from a **searchable list of your installed plugins/skills** (with so
 labels), and compare **models** too — set a different Model A vs Model B (e.g. the
 same skill under sonnet vs opus); the report labels arms `my-skill @ sonnet` vs
 `my-skill @ opus`. Toggle off the no-skill control for a cheaper pure A-vs-B run.
+Set the optional **Stop after ~$N** field to cap total usage — it stops *starting*
+new runs once cumulative spend crosses the threshold; in-flight runs still finish
+(a soft cap on the usage proxy, not a hard dollar limit). Blank = off (the default).
 
 Runs use **your Claude Code subscription** via `claude -p` — never an API key or the
 Agent SDK; the "cost" shown is a usage proxy bounded by your plan's limits. The
