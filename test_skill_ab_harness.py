@@ -515,7 +515,10 @@ def test_dedupe_runs_collapses_retried_cells():
 def test_build_html_report_renders_and_escapes():
     cfg = _cfg()
     res = _two_task_results()
-    res[0].diff = "diff for A <script>alert(1)</script>\n+line"  # must be escaped
+    # A real `git diff` whose CONTENT carries markup -- the parsed renderer must
+    # escape it per segment so it can never re-parse as live HTML.
+    res[0].diff = ("diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n"
+                   "@@ -1,1 +1,1 @@\n-old = 1\n+evil = '<script>alert(1)</script>'\n")
     man = h.experiment_manifest(cfg, timestamp=1.0)
     doc = h.build_html_report(res, h.Preflight(), cfg, man)
     assert doc.lstrip().startswith("<") and "</html>" in doc and "<table" in doc
@@ -690,6 +693,138 @@ def test_html_script_structural_and_optional_node_check():
         path = f.name
     proc = subprocess.run([node, "--check", path], capture_output=True, text=True)
     assert proc.returncode == 0, f"node --check failed:\n{proc.stderr}"
+
+
+# --------------------------------------------------------------------------
+# Parsed diff renderer (plan 024 §1.1-§1.8)
+# --------------------------------------------------------------------------
+
+_MULTI_DIFF = (
+    "diff --git a/src/app.py b/src/app.py\n"
+    "index 1111111..2222222 100644\n"
+    "--- a/src/app.py\n"
+    "+++ b/src/app.py\n"
+    "@@ -10,6 +10,7 @@ def main():\n"
+    " ctx-a\n"
+    "-old line\n"
+    "+new line\n"
+    "+extra add\n"
+    " ctx-b\n"
+    "@@ -40,3 +41,3 @@\n"
+    " ctx-c\n"
+    "-gone\n"
+    "+added\n"
+    "diff --git a/NOTES.md b/NOTES.md\n"
+    "new file mode 100644\n"
+    "--- /dev/null\n"
+    "+++ b/NOTES.md\n"
+    "@@ -0,0 +1,2 @@\n"
+    "+# Notes\n"
+    "+second\n"
+    "diff --git a/dead.py b/dead.py\n"
+    "deleted file mode 100644\n"
+    "--- a/dead.py\n"
+    "+++ /dev/null\n"
+    "@@ -1,2 +0,0 @@\n"
+    "-bye\n"
+    "-now\n"
+)
+
+
+def test_parse_unified_diff_line_number_seeding():
+    files = h.parse_unified_diff(_MULTI_DIFF)
+    assert [f.path for f in files] == ["src/app.py", "NOTES.md", "dead.py"]
+    # status classified from metadata, NOT from a ctx fall-through
+    assert [f.status for f in files] == ["M", "A", "D"]
+    # +adds/-dels counted per file
+    assert (files[0].add_count, files[0].del_count) == (3, 2)
+    assert (files[1].add_count, files[1].del_count) == (2, 0)
+    assert (files[2].add_count, files[2].del_count) == (0, 2)
+    # line numbers seeded from each @@ and advanced (old# on ctx/del, new# on ctx/add)
+    h0 = files[0].hunks[0]
+    assert [(r.kind, r.old_n, r.new_n) for r in h0.rows] == [
+        ("ctx", 10, 10), ("del", 11, None), ("add", None, 11),
+        ("add", None, 12), ("ctx", 12, 13)]
+    h1 = files[0].hunks[1]               # second hunk re-seeds from its own header
+    assert [(r.kind, r.old_n, r.new_n) for r in h1.rows] == [
+        ("ctx", 40, 41), ("del", 41, None), ("add", None, 42)]
+    # the deleted file's rows carry old# only
+    assert [(r.kind, r.old_n, r.new_n) for r in files[2].hunks[0].rows] == [
+        ("del", 1, None), ("del", 2, None)]
+    # +++/---/index lines are metadata, never emitted as rows
+    assert all(r.kind in ("ctx", "add", "del") for f in files for hk in f.hunks
+               for r in hk.rows)
+
+
+def test_word_diff_per_segment_escaping_inside_w_span():
+    # A renamed identifier whose NEW token contains '<' must surface as &lt; INSIDE
+    # a .w span -- proving each get_opcodes() segment is escaped before wrapping.
+    diff = ("diff --git a/m.py b/m.py\n--- a/m.py\n+++ b/m.py\n@@ -1,1 +1,1 @@\n"
+            "-def greet(name):\n+def greet(foo<baz>):\n")
+    files = h.parse_unified_diff(diff)
+    hunk = h.word_diff_pairs(files[0].hunks[0])
+    drow = next(r for r in hunk.rows if r.kind == "del")
+    arow = next(r for r in hunk.rows if r.kind == "add")
+    assert drow.pair_idx == 0 and arow.pair_idx == 0     # paired by index
+    assert any(changed for _, changed in arow.segments)  # a changed segment exists
+    out = h.render_diff(diff, "m")
+    assert '<span class="w">' in out                     # word highlight ran
+    assert "&lt;" in out and "foo<baz>" not in out        # raw byte never leaks
+    assert re.search(r'<span class="w">[^<]*&lt;', out)   # the < lives inside a .w span
+
+
+def test_word_diff_ratio_gate_and_length_cap_fall_back_to_whole_line():
+    # ratio < 0.3 -> no char diff (the two lines share nothing)
+    low = ("diff --git a/g b/g\n@@ -1,1 +1,1 @@\n-aaaaaaaaaa\n+zzzz1234567\n")
+    drow = h.word_diff_pairs(h.parse_unified_diff(low)[0].hunks[0]).rows[0]
+    assert drow.segments == [("aaaaaaaaaa", False)]      # untouched whole line
+    assert '<span class="w">' not in h.render_diff(low, "g")
+    # over the 400-char cap -> no char diff even though the lines are near-identical
+    base = "x" * 410
+    capped = f"diff --git a/c b/c\n@@ -1,1 +1,1 @@\n-{base}A\n+{base}B\n"
+    assert '<span class="w">' not in h.render_diff(capped, "c")
+    # within the cap and above the gate -> char diff DOES fire
+    near = "y" * 100
+    ok = f"diff --git a/c2 b/c2\n@@ -1,1 +1,1 @@\n-{near}A\n+{near}B\n"
+    assert '<span class="w">' in h.render_diff(ok, "c2")
+
+
+def test_fold_context_collapses_long_runs_keeping_lead_and_trail():
+    rows = ([h._Row("ctx", i, i, [(f"c{i}", False)]) for i in range(10)]
+            + [h._Row("add", None, 11, [("x", False)])])
+    folded = h.fold_context(rows, ctx=3, min_run=6)
+    folds = [r for r in folded if r.kind == "fold"]
+    assert len(folds) == 1 and folds[0].fold_n == 4          # 10 ctx - 3 lead - 3 trail
+    assert len(folds[0].fold_rows) == 4
+    # short runs are left intact
+    short = [h._Row("ctx", i, i, [("c", False)]) for i in range(5)]
+    assert all(r.kind == "ctx" for r in h.fold_context(short))
+
+
+def test_render_diff_structure_and_fold_marker():
+    diff = ("diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+            "@@ -1,14 +1,14 @@\n"
+            + "".join(f" ctx{i}\n" for i in range(10))   # 10 ctx -> fold marker
+            + "-old\n+new\n")
+    out = h.render_diff(diff, "s")
+    for needle in ('class="file-head"', 'class="fpath"', 'class="fcount"',
+                   'class="hunk-head"', 'class="row ctx"', 'class="row add"',
+                   'class="row del"', 'class="ln"', 'class="sg"', 'class="tx"',
+                   'data-k="0"', 'data-k="1"', 'data-k="2"', 'data-status="M"',
+                   'class="fold"'):
+        assert needle in out, needle
+
+
+def test_render_diff_truncation_marker_and_field_roundtrip():
+    diff = "diff --git a/x b/x\n@@ -1,1 +1,1 @@\n-a\n+b\n"
+    assert 'class="trunc"' in h.render_diff(diff, "x", True)
+    assert 'class="trunc"' not in h.render_diff(diff, "x", False)
+    # the diff_truncated flag threads through to_dict/from_dict
+    r = RunResult(task_id="t", arm=Arm.SKILL_ON, run_index=0, worktree=Path("/wt"),
+                  skill_activated=None, activation_reason="", agent_ok=True,
+                  diff="d", diff_truncated=True)
+    assert r.to_dict()["diff_truncated"] is True
+    assert RunResult.from_dict(r.to_dict()).diff_truncated is True
 
 
 # --------------------------------------------------------------------------

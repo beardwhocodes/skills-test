@@ -60,6 +60,7 @@ one-time confirmation of the activation fingerprint against your CLI version
 from __future__ import annotations
 
 import asyncio
+import difflib
 import hashlib
 import html
 import json
@@ -384,6 +385,8 @@ class RunResult:
     scores: dict[str, float] = field(default_factory=dict)
     error: str | None = None
     diff: str | None = None            # the agent's work product (for the blind judge)
+    diff_truncated: bool = False       # True iff the captured diff was cut at
+    #                                  # judge_max_diff_chars (renderer shows a marker)
     # skill_activated = did THIS arm's OWN intended skill fire (None for the
     # control / when there's nothing to detect). arm_skill_name = the arm's intended
     # skill (None = control). contaminated_by = a FOREIGN skill that fired in this
@@ -440,6 +443,7 @@ class RunResult:
             "scores": self.scores,
             "error": self.error,
             "diff": self.diff,
+            "diff_truncated": self.diff_truncated,
             "arm_skill_name": self.arm_skill_name,
             "contaminated_by": self.contaminated_by,
         }
@@ -457,6 +461,7 @@ class RunResult:
             hit_turn_limit=d.get("hit_turn_limit", False),
             wall_seconds=d.get("wall_seconds"), scores=dict(d.get("scores") or {}),
             error=d.get("error"), diff=d.get("diff"),
+            diff_truncated=d.get("diff_truncated", False),
             arm_skill_name=d.get("arm_skill_name"), contaminated_by=d.get("contaminated_by"))
 
 
@@ -1218,6 +1223,7 @@ async def execute_run(task: Task, arm: Arm, idx: int, cfg: ExperimentConfig,
                     d = await asyncio.to_thread(
                         _run, f"git diff HEAD -- . {_SCRATCH_EXCLUDE}", wt.path, 120)
                     result.diff = d.stdout[:cfg.judge_max_diff_chars]
+                    result.diff_truncated = len(d.stdout) >= cfg.judge_max_diff_chars
                 except Exception:  # noqa: BLE001
                     pass
 
@@ -2304,23 +2310,256 @@ def discover_runs(root: Path) -> list[dict]:
 # Self-contained HTML report
 # ---------------------------------------------------------------------------
 
-def _diff_to_html(diff: str | None) -> str:
-    if not diff:
-        return '<p class="empty">(no diff)</p>'
-    rows = []
-    for line in diff.splitlines():
-        cls = "ctx"
-        if line.startswith("+") and not line.startswith("+++"):
-            cls = "add"
-        elif line.startswith("-") and not line.startswith("---"):
-            cls = "del"
-        elif line.startswith("@@"):
-            cls = "hunk"
-        rows.append(f'<div class="{cls}">{html.escape(line) or "&nbsp;"}</div>')
-    return f'<pre class="diff">{"".join(rows)}</pre>'
+# ---- parsed unified-diff model + renderer (plan 024 §1.1-§1.4) -------------
+# A pure parser (`re`/`html`/`difflib`, no regex on content) builds a
+# _PatchFile/_Hunk/_Row model; the renderer emits escaped, line-numbered,
+# word-highlighted, context-folded DOM. Diff bytes are escaped PER SEGMENT at
+# render time and never reach the JSON blob or any innerHTML-of-raw path.
+
+@dataclass
+class _Row:
+    """One diff line. `segments` is [(text, changed)] carrying RAW (un-escaped)
+    text -- escaping happens at render so the model stays pure data. `kind`
+    'fold' rows are synthetic collapse markers carrying the hidden run."""
+    kind: str                                  # 'ctx'|'add'|'del'|'meta'|'fold'
+    old_n: int | None = None
+    new_n: int | None = None
+    segments: list[tuple[str, bool]] = field(default_factory=list)
+    pair_idx: int | None = None
+    side: str | None = None                    # 'o'|'n'|'b'
+    fold_n: int | None = None
+    fold_rows: list["_Row"] = field(default_factory=list)
+
+
+@dataclass
+class _Hunk:
+    header_text: str
+    old_start: int
+    new_start: int
+    rows: list[_Row] = field(default_factory=list)
+    hunk_id: str = ""
+
+
+@dataclass
+class _PatchFile:
+    path: str
+    old_path: str
+    status: str                                # 'A'|'M'|'D'|'R'
+    add_count: int = 0
+    del_count: int = 0
+    hunks: list[_Hunk] = field(default_factory=list)
+    file_id: str = ""
+
+
+_DIFF_GIT_RE = re.compile(r"^diff --git a/(\S+) b/(\S+)")
+_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+_STATUS_TIP = {"A": "added", "M": "modified", "D": "deleted", "R": "renamed"}
+_ROW_K = {"ctx": 0, "add": 1, "del": 2}
+_ROW_SIGN = {"ctx": " ", "add": "+", "del": "-"}
+
+
+def parse_unified_diff(diff: str | None) -> list["_PatchFile"]:
+    """Parse `git diff` text into a [_PatchFile] model. Regex only ever touches diff
+    *control* lines (`diff --git`, `@@`); content bytes are carried verbatim. The
+    `+++`/`---`/`index`/`new file`/`deleted file`/`rename` lines are FILE METADATA
+    (status + paths), never `ctx` rows -- fixing the old `_diff_to_html` fall-through
+    that tinted them as context. Old/new line numbers are seeded from each hunk
+    header and advanced per row (old# on ctx/del, new# on ctx/add); +adds/-dels are
+    counted per file."""
+    files: list[_PatchFile] = []
+    cur: _PatchFile | None = None
+    hunk: _Hunk | None = None
+    old_n = new_n = 0
+    for line in (diff or "").splitlines():
+        gm = _DIFF_GIT_RE.match(line)
+        if gm:
+            cur = _PatchFile(path=gm.group(2), old_path=gm.group(1), status="M")
+            files.append(cur)
+            hunk = None
+            continue
+        if cur is None:
+            continue                            # preamble before the first file
+        hm = _HUNK_RE.match(line)
+        if hm:
+            old_n, new_n = int(hm.group(1)), int(hm.group(2))
+            hunk = _Hunk(header_text=line, old_start=old_n, new_start=new_n)
+            cur.hunks.append(hunk)
+            continue
+        if line.startswith("\\"):               # "\ No newline at end of file"
+            continue
+        if hunk is None:
+            # File metadata precedes the first @@: classify status, drop the rest.
+            if line.startswith("new file"):
+                cur.status = "A"
+            elif line.startswith("deleted file"):
+                cur.status = "D"
+            elif line.startswith("rename from"):
+                cur.status, cur.old_path = "R", line[12:].strip() or cur.old_path
+            elif line.startswith("rename to"):
+                cur.status, cur.path = "R", line[10:].strip() or cur.path
+            elif line[:1] in "+- " and not line.startswith(("+++ ", "--- ")):
+                # A diff body with no @@ header (synthetic fixtures): seed an
+                # implicit hunk at 1/1 so the content still renders.
+                hunk = _Hunk(header_text="", old_start=1, new_start=1)
+                old_n = new_n = 1
+                cur.hunks.append(hunk)
+            else:
+                continue                        # index/mode/---/+++/binary/blank
+            if hunk is None:
+                continue
+        c = line[:1]
+        if c == "+":
+            hunk.rows.append(_Row("add", None, new_n, [(line[1:], False)]))
+            new_n += 1
+            cur.add_count += 1
+        elif c == "-":
+            hunk.rows.append(_Row("del", old_n, None, [(line[1:], False)]))
+            old_n += 1
+            cur.del_count += 1
+        else:
+            txt = line[1:] if c == " " else line
+            hunk.rows.append(_Row("ctx", old_n, new_n, [(txt, False)]))
+            old_n += 1
+            new_n += 1
+    for fi, pf in enumerate(files):
+        pf.file_id = f"f-{fi}"
+        for hi, hk in enumerate(pf.hunks):
+            hk.hunk_id = f"{fi}-{hi}"
+    return files
+
+
+def word_diff_pairs(hunk: "_Hunk", ratio_gate: float = 0.3,
+                    max_len: int = 400) -> "_Hunk":
+    """Pair the i-th del row with the i-th add row in the hunk and compute intra-line
+    char-level highlight segments, mutating each row's `segments`/`pair_idx`/`side`.
+    A pair runs the char diff only when SequenceMatcher.ratio() >= ratio_gate AND the
+    longer line is <= max_len (the cap dodges O(n*m) stalls on minified lines);
+    otherwise the line keeps its single whole-line segment (changed=False)."""
+    dels = [r for r in hunk.rows if r.kind == "del"]
+    adds = [r for r in hunk.rows if r.kind == "add"]
+    for idx, (dr, ar) in enumerate(zip(dels, adds)):
+        d = dr.segments[0][0] if dr.segments else ""
+        a = ar.segments[0][0] if ar.segments else ""
+        dr.pair_idx = ar.pair_idx = idx
+        dr.side, ar.side = "o", "n"
+        if max(len(d), len(a)) > max_len:
+            continue
+        sm = difflib.SequenceMatcher(None, d, a, autojunk=False)
+        if sm.ratio() < ratio_gate:
+            continue
+        dseg: list[tuple[str, bool]] = []
+        aseg: list[tuple[str, bool]] = []
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == "equal":
+                dseg.append((d[i1:i2], False))
+                aseg.append((a[j1:j2], False))
+            elif tag == "delete":
+                dseg.append((d[i1:i2], True))
+            elif tag == "insert":
+                aseg.append((a[j1:j2], True))
+            else:                               # replace
+                dseg.append((d[i1:i2], True))
+                aseg.append((a[j1:j2], True))
+        dr.segments, ar.segments = dseg, aseg
+    return hunk
+
+
+def fold_context(rows: list["_Row"], ctx: int = 3, min_run: int = 6) -> list["_Row"]:
+    """Collapse runs of >= min_run consecutive ctx rows into one 'fold' marker,
+    keeping `ctx` lead + `ctx` trail rows visible and stashing the hidden rows on the
+    marker so the client can reveal real captured context (never a faked fetch). Runs
+    with nothing left to hide after the lead/trail are returned untouched."""
+    out: list[_Row] = []
+    i, n = 0, len(rows)
+    while i < n:
+        if rows[i].kind != "ctx":
+            out.append(rows[i])
+            i += 1
+            continue
+        j = i
+        while j < n and rows[j].kind == "ctx":
+            j += 1
+        run = rows[i:j]
+        hidden = run[ctx:len(run) - ctx]
+        if len(run) >= min_run and hidden:
+            out.extend(run[:ctx])
+            out.append(_Row("fold", fold_n=len(hidden), fold_rows=hidden))
+            out.extend(run[len(run) - ctx:])
+        else:
+            out.extend(run)
+        i = j
+    return out
+
+
+def _render_seg_html(segments: list[tuple[str, bool]]) -> str:
+    """Escape EACH segment individually; wrap changed segments in <span class=w>. No
+    raw diff byte is ever interpolated unescaped (load-bearing, plan 024 §1.4)."""
+    out = []
+    for text, changed in segments:
+        esc = html.escape(text)
+        out.append(f'<span class="w">{esc}</span>' if changed else esc)
+    return "".join(out)
+
+
+def _render_row(row: "_Row") -> str:
+    if row.kind == "fold":
+        inner = "".join(_render_row(r) for r in row.fold_rows)
+        return (f'<div class="fold" data-n="{row.fold_n}">'
+                f'<button type="button" data-act="expand" aria-expanded="false">'
+                f'Expand {row.fold_n} unchanged lines</button>'
+                f'<div class="folded" hidden>{inner}</div></div>')
+    old = "" if row.old_n is None else str(row.old_n)
+    new = "" if row.new_n is None else str(row.new_n)
+    pair = f' data-pair="{row.pair_idx}"' if row.pair_idx is not None else ""
+    return (f'<div class="row {row.kind}" data-k="{_ROW_K.get(row.kind, 0)}"{pair}>'
+            f'<span class="ln">{old}</span><span class="ln">{new}</span>'
+            f'<span class="sg">{_ROW_SIGN.get(row.kind, " ")}</span>'
+            f'<span class="tx">{_render_seg_html(row.segments)}</span></div>')
+
+
+def _render_patch(patch_files: list["_PatchFile"], patch_id: str,
+                  truncated: bool = False) -> str:
+    """Escaped DOM for one run's diff: a sticky file head (path + `+N -M` + A/M/D/R
+    status) per file, a head per hunk, a CSS-grid row [old# new# sign code] per line,
+    and a visible truncation marker when the captured diff was cut."""
+    trunc = ('<div class="trunc" role="note">diff truncated &mdash; only the first '
+             'captured characters are shown</div>') if truncated else ""
+    if not patch_files:
+        return f'<div class="patch"><p class="empty">(no diff)</p>{trunc}</div>'
+    pid = html.escape(patch_id)
+    out = ['<div class="patch">']
+    for fi, pf in enumerate(patch_files):
+        out.append(
+            f'<section class="file" id="f-{pid}-{fi}" '
+            f'data-path="{html.escape(pf.path)}" data-add="{pf.add_count}" '
+            f'data-del="{pf.del_count}" data-status="{pf.status}">')
+        out.append(
+            f'<div class="file-head"><span class="fpath">{html.escape(pf.path)}</span>'
+            f'<span class="fstat s-{pf.status}" '
+            f'data-tip="{_STATUS_TIP.get(pf.status, "modified")}">{pf.status}</span>'
+            f'<span class="fcount">+{pf.add_count} {_MINUS}{pf.del_count}</span></div>')
+        for hi, hk in enumerate(pf.hunks):
+            word_diff_pairs(hk)
+            rows = fold_context(hk.rows)
+            out.append(f'<div class="hunk" id="h-{pid}-{fi}-{hi}">')
+            if hk.header_text:
+                out.append(f'<div class="hunk-head">{html.escape(hk.header_text)}</div>')
+            out.extend(_render_row(r) for r in rows)
+            out.append('</div>')
+        out.append('</section>')
+    out.append(trunc)
+    out.append('</div>')
+    return "".join(out)
+
+
+def render_diff(diff: str | None, patch_id: str, truncated: bool = False) -> str:
+    """Parse + render a unified diff into escaped, line-numbered, word-highlighted,
+    context-folded DOM. Replaces the flat `_diff_to_html`."""
+    return _render_patch(parse_unified_diff(diff), patch_id, truncated)
 
 
 _MIDDOT = "·"
+_MINUS = "−"
 # Caret glyph for server-rendered <details> summaries; matches the JS IC.caret icon.
 _CARET = ("<svg class='caret' width='13' height='13' viewBox='0 0 24 24' fill='none'>"
           "<path d='M9 6l6 6-6 6' stroke='currentColor' stroke-width='2' "
@@ -2338,6 +2577,9 @@ _HTML_STYLE = """
     --neutral:#6b7484;
     --grid:#eef0f4; --axis:#c7ccd6;
     --pill-grey-bg:#eef0f3; --pill-grey-ink:#5b6472;
+    --hunk:#8957e5; --accent:#1f77b4; --diverge:#9a6b00;
+    --w-add:color-mix(in srgb,var(--good) 32%, transparent);
+    --w-del:color-mix(in srgb,var(--bad) 32%, transparent);
     --shadow-sm:0 1px 2px rgba(17,21,27,.05);
     --shadow:0 1px 2px rgba(17,21,27,.05), 0 10px 30px rgba(17,21,27,.07);
     --shadow-lg:0 2px 4px rgba(17,21,27,.05), 0 24px 60px rgba(17,21,27,.10);
@@ -2357,6 +2599,9 @@ _HTML_STYLE = """
       --neutral:#8b94a2;
       --grid:#1b212b; --axis:#384353;
       --pill-grey-bg:#1d242e; --pill-grey-ink:#9aa3b1;
+      --hunk:#b392f0; --accent:#5aa9dd; --diverge:#e3b341;
+      --w-add:color-mix(in srgb,var(--good) 40%, transparent);
+      --w-del:color-mix(in srgb,var(--bad) 40%, transparent);
       --shadow-sm:0 1px 2px rgba(0,0,0,.4);
       --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 36px rgba(0,0,0,.5);
       --shadow-lg:0 2px 6px rgba(0,0,0,.45), 0 30px 70px rgba(0,0,0,.6);
@@ -2631,20 +2876,59 @@ _HTML_STYLE = """
   .valid-y{color:var(--good); font-weight:640}
   .note{font-size:12px; color:var(--muted); line-height:1.55; margin:6px 2px 0}
 
-  /* ---------- work-product diffs ---------- */
+  /* ---------- work-product diffs (parsed, plan 024 §1.7) ---------- */
   .cols{display:flex; gap:14px; flex-wrap:wrap}
   .col{flex:1; min-width:240px}
   .col h3{font-family:var(--mono); font-size:12.5px; font-weight:600;
     margin:2px 0 4px}
   .wp-meta{font-size:11.5px; color:var(--muted); margin:8px 0 2px}
-  .diff{font-family:var(--mono); font-size:11.5px; overflow:auto;
-    border:1px solid var(--line); border-radius:9px; padding:8px;
-    background:var(--card-2); margin:4px 0 8px}
-  .diff > div{white-space:pre}
-  .add{color:var(--good); background:color-mix(in srgb,var(--good) 12%, transparent)}
-  .del{color:var(--bad); background:color-mix(in srgb,var(--bad) 12%, transparent)}
-  .hunk{color:#8957e5} .ctx{color:var(--muted)}
   .empty{color:var(--faint); font-style:italic}
+
+  .patch{font-family:var(--mono); font-size:11.5px; line-height:1.5;
+    border:1px solid var(--line); border-radius:9px; background:var(--card-2);
+    margin:4px 0 8px; overflow:auto; max-height:520px}
+  .patch .file{border-top:1px solid var(--line)}
+  .patch .file:first-child{border-top:none}
+  .file-head{position:sticky; top:0; z-index:2; display:flex; align-items:center;
+    gap:8px; padding:6px 10px; background:var(--card);
+    border-bottom:1px solid var(--line); font-size:11.5px}
+  .file-head .fpath{font-weight:600; color:var(--ink); overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap}
+  .file-head .fstat{flex:0 0 auto; font-weight:700; font-size:10px; padding:1px 6px;
+    border-radius:5px; border:1px solid var(--line-2); color:var(--muted);
+    background:var(--pill-grey-bg)}
+  .file-head .fstat.s-A{color:var(--good); background:var(--good-bg);
+    border-color:var(--good-line)}
+  .file-head .fstat.s-D{color:var(--bad); background:var(--bad-bg);
+    border-color:var(--bad-line)}
+  .file-head .fcount{margin-left:auto; flex:0 0 auto; color:var(--muted);
+    font-variant-numeric:tabular-nums}
+  .hunk-head{padding:3px 10px; color:var(--hunk); background:var(--card-2);
+    border-bottom:1px solid var(--line); white-space:pre-wrap; word-break:break-all}
+  .row{display:grid; grid-template-columns:auto auto 1ch 1fr; align-items:start;
+    min-height:1.45em}
+  .row .ln{position:sticky; left:0; padding:0 8px; text-align:right;
+    color:var(--faint); font-variant-numeric:tabular-nums; min-width:2.4em;
+    background:var(--card-2)}
+  .row .sg{text-align:center; color:var(--muted)}
+  .row .tx{white-space:pre-wrap; overflow-wrap:anywhere; padding-right:8px}
+  .ln,.sg{user-select:none}
+  .row.add{background:color-mix(in srgb,var(--good) 7%, transparent);
+    box-shadow:inset 3px 0 0 var(--good)}
+  .row.del{background:color-mix(in srgb,var(--bad) 7%, transparent);
+    box-shadow:inset 3px 0 0 var(--bad)}
+  .row.add .ln{background:color-mix(in srgb,var(--good) 7%, var(--card-2))}
+  .row.del .ln{background:color-mix(in srgb,var(--bad) 7%, var(--card-2))}
+  .row.add .tx{color:var(--good)} .row.del .tx{color:var(--bad)}
+  .row .w{border-radius:3px; padding:0 1px; font-weight:600}
+  .row.add .w{background:var(--w-add)} .row.del .w{background:var(--w-del)}
+  .fold{padding:3px 10px; background:var(--card-2);
+    border-bottom:1px solid var(--line)}
+  .fold > button{font:inherit; color:var(--muted); background:none; border:none;
+    cursor:pointer; padding:2px 0}
+  .fold > button:hover{color:var(--ink-2); text-decoration:underline}
+  .trunc{padding:6px 10px; color:var(--bad); background:var(--bad-bg);
+    border-top:1px solid var(--bad-line); font-size:11px}
 
   footer{margin-top:34px; text-align:center; color:var(--faint); font-size:11.5px}
 
@@ -3502,8 +3786,23 @@ _HTML_SCRIPT = r"""(function(){
       if (n) t.classList.remove("on");
     });
   }
+  function wireDiff(){
+    // Tiny fold-expand toggle for server-rendered diffs: reveal the stashed
+    // (already-escaped) context rows, then drop the button. No innerHTML writes.
+    document.addEventListener("click", function(e){
+      var t = e.target;
+      var b = t && t.closest ? t.closest("button[data-act='expand']") : null;
+      if (!b) return;
+      var fold = b.parentNode;
+      var hid = fold ? fold.querySelector(".folded") : null;
+      if (hid) hid.hidden = false;
+      b.setAttribute("aria-expanded", "true");
+      if (fold) fold.removeChild(b);
+    });
+  }
   mount();
   wireTooltip();
+  wireDiff();
 })();
 """
 
@@ -3603,11 +3902,13 @@ def _work_products_html(results: list[RunResult], cfg: ExperimentConfig,
             if not runs:
                 parts.append("<p class='empty'>(no valid runs)</p>")
             for r in runs[:3]:
+                pid = re.sub(r"[^0-9A-Za-z]+", "-", f"{tid}-{arm.value}-{r.run_index}")
                 parts.append(
                     f"<div class='wp-meta'>run {r.run_index} " + _MIDDOT
                     + f" ${r.cost_usd or 0:.3f} " + _MIDDOT
                     + f" {r.num_turns or '?'} turns " + _MIDDOT
-                    + f" act={r.skill_activated}</div>{_diff_to_html(r.diff)}")
+                    + f" act={r.skill_activated}</div>"
+                    + render_diff(r.diff, pid, r.diff_truncated))
             parts.append("</div>")
         parts.append("</div></div></details>")
     return "".join(parts)
@@ -3958,11 +4259,38 @@ def _demo_results() -> list[RunResult]:
                             (0, 1, 5, False), (0, 1, 7, False), (1, 1, 9, False)],
         },
     }
-    diff_on = ("diff --git a/util.py b/util.py\n+    import re\n"
-               "+    return bool(re.match(r'^[^@]+@[^@]+\\.[^@]+$', s))\n"
-               "diff --git a/test_util.py b/test_util.py\n+def test_valid():\n"
-               "+    assert is_valid_email('a@b.com')\n")
-    diff_off = "diff --git a/util.py b/util.py\n+    return '@' in s\n"
+    diff_on = (
+        "diff --git a/util.py b/util.py\n"
+        "--- a/util.py\n+++ b/util.py\n"
+        "@@ -1,5 +1,7 @@\n"
+        " import re\n"
+        " \n"
+        "-def is_valid_email(s):\n"
+        "-    return '@' in s\n"
+        "+def is_valid_email(s: str) -> bool:\n"
+        "+    pattern = r'^[^@]+@[^@]+\\.[^@]+$'\n"
+        "+    return bool(re.match(pattern, s))\n"
+        " \n"
+        " EMAIL_MAX = 254\n"
+        "diff --git a/test_util.py b/test_util.py\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n+++ b/test_util.py\n"
+        "@@ -0,0 +1,4 @@\n"
+        "+def test_valid():\n"
+        "+    assert is_valid_email('a@b.com')\n"
+        "+    assert not is_valid_email('nope')\n"
+        "+    assert not is_valid_email('')\n"
+    )
+    diff_off = (
+        "diff --git a/util.py b/util.py\n"
+        "--- a/util.py\n+++ b/util.py\n"
+        "@@ -1,3 +1,3 @@\n"
+        " import re\n"
+        " \n"
+        "-def is_valid_email(s):\n"
+        "+def is_valid_email(s):  # quick check\n"
+        "     return '@' in s\n"
+    )
     out = []
     for tid, arms in data.items():
         for arm, runs in arms.items():
