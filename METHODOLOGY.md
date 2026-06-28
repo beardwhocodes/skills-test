@@ -39,12 +39,15 @@ This document exists so a result can be **cited**, not just screenshotted.
 - **Multiple metrics:** Benjamini–Hochberg across the secondary metrics;
   `tests_pass` is pre-registered as the single primary (uncorrected) endpoint.
 
-## The verdict badge is self-policing
+## The comparison verdict is self-policing
 
-`skill-ab badge` reads `summary.json` and shows **verified/regressed** only when the
-95% CI excludes 0 **and** the run is trustworthy (≥ 2 clustered tasks, **zero**
-OFF-arm contamination). Otherwise it shows **inconclusive** (grey). A green badge on
-an underpowered or contaminated run is impossible by construction — that's the point.
+This is a comparison benchmark, not a pass/fail build. The report calls a difference
+**significant** only when the 95% CI excludes 0 **and** the run is trustworthy (≥ 2
+clustered tasks, **zero** OFF-arm contamination); otherwise **inconclusive** (grey).
+The winning arm and effect size are named in the headline — never as a green/red
+"verified/regressed" verdict. A "significant" pill on an underpowered or contaminated
+run is impossible by construction — that's the point. (The `ci` command is the one
+deliberate pass/fail gate: it exits non-zero on a significant regression.)
 
 ## Is my effect real, or am I underpowered?
 

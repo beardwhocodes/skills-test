@@ -9,7 +9,7 @@
   "properties": {
     "schema_version": {"const": 2},
     "primary_metric": {"type": "string"},
-    "primary_pair": {"type": "string", "description": "key into comparisons for the headline (badge) comparison"},
+    "primary_pair": {"type": "string", "description": "key into comparisons for the headline comparison"},
     "manifest": {
       "type": "object",
       "required": ["harness_version", "model", "skill_name"],

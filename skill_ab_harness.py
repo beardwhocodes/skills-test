@@ -355,7 +355,7 @@ def experiment_pairs(cfg: ExperimentConfig) -> list[tuple[Arm, Arm]]:
 
 
 def primary_pair(cfg: ExperimentConfig) -> tuple[Arm, Arm]:
-    """The headline comparison for the badge. Head-to-head -> A vs B; else the
+    """The headline comparison for the report. Head-to-head -> A vs B; else the
     skill vs control."""
     return (Arm.SKILL_ON, Arm.SKILL_B) if _is_head_to_head(cfg) else (Arm.SKILL_ON, Arm.SKILL_OFF)
 
@@ -1556,7 +1556,7 @@ def compute_estimates(results: list[RunResult], cfg: ExperimentConfig,
                       metrics: list[str], seed: int) -> dict:
     """Single source of truth for every pairwise estimate. Runs estimate_diff
     EXACTLY once per (pair, mode, metric) against ONE seeded RNG so the markdown,
-    JSON and HTML renderers (and the badge) all read identical CIs/p-values --
+    JSON and HTML renderers (and the verdict) all read identical CIs/p-values --
     otherwise each renderer's own RNG, consumed in a different order, produces
     divergent CIs for the same run. Returns {pair_key: {"a", "b",
     "itt": {metric: DiffEstimate|None}, "pp": {metric: DiffEstimate|None}}}. BH
@@ -1636,9 +1636,9 @@ def build_report(results: list[RunResult], pf: Preflight, cfg: ExperimentConfig,
 
     if len({r.task_id for r in results}) < 2:
         L.append("")
-        L.append("> ⚠️ **Single task** — the cluster stats need ≥2 tasks, so the badge "
-                 "stays *inconclusive* by design. Treat this as suggestive, not a verdict; "
-                 "add more tasks/PRs (or raise k) for a significant result.")
+        L.append("> ⚠️ **Single task** — the cluster stats need ≥2 tasks, so the "
+                 "comparison stays *inconclusive* by design. Treat this as suggestive, "
+                 "not a result; add more tasks/PRs (or raise k) for a significant result.")
 
     if pf.notes:
         L += ["", "## Pre-flight (quarantined checks)"]
@@ -2164,7 +2164,7 @@ def summary_dict(results: list[RunResult], cfg: ExperimentConfig, manifest: dict
     """Portable, schema-versioned summary (v2): per-arm validity + every pairwise
     comparison (2-arm: skill vs control; 3-arm: each skill vs control + A vs B). A
     convenience `itt`/`validity` mirror of the PRIMARY pair keeps simple consumers
-    (badge, CI) working. Reuses the SAME estimators build_report uses."""
+    (verdict, CI) working. Reuses the SAME estimators build_report uses."""
     scorers = scorers or default_scorers(cfg)
     metrics = [s.name for s in scorers] + ["cost_usd"]
 
@@ -2192,7 +2192,7 @@ def summary_dict(results: list[RunResult], cfg: ExperimentConfig, manifest: dict
         "primary_pair": pkey,
         "arms": arm_stats,
         "comparisons": comparisons,
-        # convenience mirror of the PRIMARY comparison (badge / simple consumers):
+        # convenience mirror of the PRIMARY comparison (verdict / simple consumers):
         "itt": comparisons[pkey]["itt"],
         "per_protocol": comparisons[pkey]["per_protocol"],
         "validity": {
@@ -2250,83 +2250,52 @@ def _metric_direction(cfg: ExperimentConfig, metric: str) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Verdict badge
+# Comparison verdict
 # ---------------------------------------------------------------------------
 
-def badge_verdict(est: dict, direction: int, n_tasks: int, clustered: bool,
-                  contaminated: int) -> dict:
-    """Map a primary-metric estimate to a badge. Self-policing: only claim a
-    win/regression when the 95% CI excludes 0 AND the run is trustworthy
-    (>=2 clustered tasks, no OFF-arm contamination)."""
+def comparison_verdict(est: dict, direction: int, n_tasks: int, clustered: bool,
+                       contaminated: int) -> dict:
+    """Map a primary-metric estimate to a COMPARISON result (not a pass/fail build).
+
+    Reports a *significant* difference only when the 95% CI excludes 0 AND the run is
+    trustworthy (>=2 clustered tasks, no contamination); otherwise *inconclusive*.
+    `direction` is +1 when the effect favors the left/treatment arm on this metric
+    (point sign x metric direction) and -1 otherwise — the winner is conveyed in the
+    headline, never as a good/bad verdict. `tone` is an internal hint for the pill
+    (significant -> accent, inconclusive -> flat), not a shields colour."""
     lo, hi, point = est["ci_low"], est["ci_high"], est["point"]
     trustworthy = clustered and n_tasks >= 2 and contaminated == 0
     excludes_zero = not (lo <= 0 <= hi)
-    if not trustworthy or not excludes_zero:
-        label, color = "inconclusive", "lightgrey"
-    else:
-        improved = (point > 0) if direction > 0 else (point < 0)
-        label = "verified" if improved else "regressed"
-        color = "brightgreen" if improved else "red"
-    return {"label": label, "color": color, "point": point,
-            "ci_low": lo, "ci_high": hi, "n_tasks": n_tasks}
-
-
-def render_badge_svg(metric: str, verdict: dict) -> str:
-    """A flat shields-style SVG. No external assets/deps."""
-    pct = f"{verdict['point'] * 100:+.0f}%"
-    right = (f"{verdict['label']} {metric} {pct}" if verdict["label"] != "inconclusive"
-             else f"{metric}: inconclusive")
-    right = html.escape(right)
-    color = {"brightgreen": "#4c1", "red": "#e05d44", "lightgrey": "#9f9f9f"}[verdict["color"]]
-    lw, rw = 70, max(120, 8 * len(right))
-    w = lw + rw
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="20" '
-        f'role="img" aria-label="skill A/B: {right}">'
-        f'<rect width="{lw}" height="20" fill="#555"/>'
-        f'<rect x="{lw}" width="{rw}" height="20" fill="{color}"/>'
-        f'<g fill="#fff" font-family="Verdana,Geneva,sans-serif" font-size="11">'
-        f'<text x="6" y="14">skill A/B</text>'
-        f'<text x="{lw + 6}" y="14">{right}</text></g></svg>')
-
-
-def badge_endpoint_json(metric: str, verdict: dict) -> dict:
-    """shields.io 'endpoint' schema (host the JSON, point shields at it)."""
-    pct = f"{verdict['point'] * 100:+.0f}%"
-    msg = f"{verdict['label']} {pct}" if verdict["label"] != "inconclusive" else "inconclusive"
-    return {"schemaVersion": 1, "label": f"skill A/B: {metric}",
-            "message": msg, "color": verdict["color"]}
-
-
-def badge_markdown(metric: str, verdict: dict, svg_rel_path: str) -> str:
-    ci = f"[{verdict['ci_low'] * 100:+.0f}%, {verdict['ci_high'] * 100:+.0f}%]"
-    return (f"![skill A/B {metric}]({svg_rel_path}) "
-            f"<!-- {verdict['label']} {metric} {verdict['point'] * 100:+.0f}% 95% CI {ci}, "
-            f"n_tasks={verdict['n_tasks']} -->")
+    significant = trustworthy and excludes_zero
+    favors_left = (point > 0) if direction > 0 else (point < 0)
+    effect_dir = 1 if favors_left else -1
+    return {"label": "significant" if significant else "inconclusive",
+            "tone": "accent" if significant else "flat", "direction": effect_dir,
+            "point": point, "ci_low": lo, "ci_high": hi, "n_tasks": n_tasks}
 
 
 def primary_verdict(summary: dict, cfg: ExperimentConfig) -> dict | None:
-    """The badge_verdict for the configured primary metric, or None."""
+    """The comparison_verdict for the configured primary metric, or None."""
     metric = summary["primary_metric"]
     est = summary["itt"].get(metric)
     if not est:
         return None
-    return badge_verdict(est, _metric_direction(cfg, metric), est["n_tasks"],
-                         est["clustered"], summary["validity"]["off_contaminated"])
+    return comparison_verdict(est, _metric_direction(cfg, metric), est["n_tasks"],
+                              est["clustered"], summary["validity"]["off_contaminated"])
 
 
 def _gallery_verdict_from_summary(summary: dict) -> dict | None:
-    """Badge verdict for a foreign summary.json WITHOUT a cfg. The gallery ingests
-    many summaries and has no ExperimentConfig, so metric direction falls back to
-    the same default _metric_direction uses for unknown metrics; a custom lower-is-
-    better scorer can't be detected from a summary alone (open question)."""
+    """Comparison verdict for a foreign summary.json WITHOUT a cfg. The gallery
+    ingests many summaries and has no ExperimentConfig, so metric direction falls
+    back to the same default _metric_direction uses for unknown metrics; a custom
+    lower-is-better scorer can't be detected from a summary alone (open question)."""
     metric = summary.get("primary_metric")
     est = (summary.get("itt") or {}).get(metric)
     if not est:
         return None
     direction = -1 if metric in ("cost_usd", "diff_lines") else 1
-    return badge_verdict(est, direction, est["n_tasks"], est["clustered"],
-                         summary.get("validity", {}).get("off_contaminated", 0))
+    return comparison_verdict(est, direction, est["n_tasks"], est["clustered"],
+                              summary.get("validity", {}).get("off_contaminated", 0))
 
 
 def _gallery_unsupported_card(summary: dict) -> str:
@@ -2341,11 +2310,13 @@ def _gallery_card(summary: dict, href: str | None) -> str:
     metric = html.escape(str(summary.get("primary_metric", "?")))
     skill = html.escape(str(summary.get("manifest", {}).get("skill_name", "?")))
     pair = html.escape(str(summary.get("primary_pair", "")))
-    # A clean verdict chip, not the raw shields badge SVG (which reads as a crude grey
-    # bar inside a card). The badge.svg stays the shareable artifact on the report page.
+    # A clean comparison chip: the signed effect + whether it cleared the bar. A
+    # significant effect is tinted by which arm it favours (direction) -- a comparison
+    # statement, not a build pass/fail.
     if verdict:
-        tone = {"brightgreen": " good", "red": " bad"}.get(verdict["color"], "")
-        chip = (f"<span class='delta-chip{tone}'>{html.escape(verdict['label'])} "
+        sig = verdict["label"] == "significant"
+        tone = (" good" if verdict["direction"] > 0 else " bad") if sig else ""
+        chip = (f"<span class='delta-chip{tone}'>{verdict['label']} "
                 f"{verdict['point'] * 100:+.0f}%</span>")
     else:
         chip = "<span class='delta-chip'>inconclusive</span>"
@@ -2359,8 +2330,8 @@ def _gallery_card(summary: dict, href: str | None) -> str:
 def build_gallery_html(entries: list[dict]) -> str:
     """Static index over many runs. entry = {"summary": <summary.json dict>,
     "report_href": <str|None>}. UNVERIFIED by construction: summary.json is self-
-    reported, so the page says so. Reuses _HTML_STYLE + render_badge_svg and links
-    OUT to each per-run report.html instead of embedding it."""
+    reported, so the page says so. Reuses _HTML_STYLE, shows a per-run comparison
+    chip, and links OUT to each per-run report.html instead of embedding it."""
     cards = []
     for e in entries:
         s = e.get("summary") or {}
@@ -2415,9 +2386,7 @@ def discover_runs(root: Path) -> list[dict]:
             "created_ts": man.get("timestamp"), "n_valid": valid, "cost_usd": cost,
             "status": "done",
             "report_url": (f"/api/runs/{d.name}/report"
-                           if (d / "report.html").exists() else None),
-            "badge_url": (f"/api/runs/{d.name}/badge"
-                          if (d / "badge.svg").exists() else None)})
+                           if (d / "report.html").exists() else None)})
     out.sort(key=lambda r: (r.get("created_ts") or 0), reverse=True)
     return out
 
@@ -3319,7 +3288,7 @@ _HTML_SCRIPT = r"""(function(){
   var D = window.SKILL_AB || {};
   var META = D.meta || {};
   var VERD = D.verdict || {label:"inconclusive", tone:"flat",
-    text:"Inconclusive at this scale"};
+    text:"No significant difference"};
   var MINUS = "−", MIDDOT = "·";
 
   var METRIC_LABELS = {
@@ -3442,7 +3411,7 @@ _HTML_SCRIPT = r"""(function(){
     : 0;
 
   /* the single most decisive (pair, metric): a CI that clears 0, biggest relative
-     gap. Prefer the PRIMARY pair (the badge's comparison) so the headline tracks the
+     gap. Prefer the PRIMARY pair (the verdict's comparison) so the headline tracks the
      pre-registered story; fall back to any pair only if the primary one is a wash. */
   function leadIn(comps, onlyMetric){
     var best = null;
@@ -3561,8 +3530,9 @@ _HTML_SCRIPT = r"""(function(){
     // pill is the source of truth; a cross-runner pair is never "settled" (its
     // verdict is downgraded to suggestive), so it skips the confident headline.
     var settled = VERD.label !== "inconclusive" && !VERD.crossRunner;
-    var ledCol = qualVar(VERD.tone === "good" ? "good"
-      : VERD.tone === "bad" ? "bad" : "flat");
+    // Pill tone is accent (significant) vs neutral (inconclusive/suggestive) -- the
+    // winner is named in the headline, so the pill stays comparison-neutral (no red).
+    var ledCol = VERD.tone === "accent" ? "var(--accent)" : "var(--neutral)";
     var headline, sentence;
     if (VERD.crossRunner){
       /* Confounded by design -- frame the leading CLI as a lead, never a verdict. */
@@ -4856,23 +4826,29 @@ def _chart_data(results: list[RunResult], cfg: ExperimentConfig, metrics: list,
 
 
 def _verdict_blob(verdict: dict | None, cross_runner: bool = False) -> dict:
-    """Map the primary-pair badge verdict to the hero status pill (text + tone).
+    """Map the primary-pair comparison verdict to the hero status pill (text + tone).
 
-    A cross-runner primary pair is confounded (different CLIs / default models /
-    logins), so it is downgraded to 'suggestive' -- grey, never a confident green or
-    red -- regardless of what the CI shows (plan 022, blocker #4). The measured
-    direction is still surfaced as a hint, just not as a verdict."""
+    This is a comparison benchmark, not a pass/fail build: the pill states whether the
+    arms *differ significantly*, never 'verified'/'regressed'. The winning arm + effect
+    size live in the headline below. A cross-runner primary pair is confounded
+    (different CLIs / default models / logins), so it is downgraded to 'suggestive' --
+    grey, never accent -- regardless of what the CI shows (plan 022, blocker #4). The
+    measured direction is still surfaced as a hint, just not as a verdict."""
     label = verdict["label"] if verdict else "inconclusive"
+    direction = (verdict or {}).get("direction", 1)
     if cross_runner:
-        hint = {"verified": " (the second CLI scored higher)",
-                "regressed": " (the first CLI scored higher)"}.get(label, "")
+        hint = ""
+        if label == "significant":
+            hint = (" (the second CLI scored higher)" if direction > 0
+                    else " (the first CLI scored higher)")
         return {"label": "suggestive", "tone": "flat", "crossRunner": True,
                 "text": "Suggestive — comparing agent CLIs, not a controlled "
                         "skill/model change" + hint}
-    text = {"verified": "Significant effect", "regressed": "Regression detected",
-            "inconclusive": "Inconclusive at this scale"}[label]
-    tone = {"verified": "good", "regressed": "bad", "inconclusive": "flat"}[label]
-    return {"label": label, "tone": tone, "crossRunner": False, "text": text}
+    if label == "significant":
+        return {"label": "significant", "tone": "accent", "crossRunner": False,
+                "text": "Significant difference"}
+    return {"label": "inconclusive", "tone": "flat", "crossRunner": False,
+            "text": "No significant difference"}
 
 
 def _run_patch_id(tid: str, arm_value: str, run_index: int) -> str:
@@ -5392,15 +5368,16 @@ def build_html_report(results: list[RunResult], pf: Preflight, cfg: ExperimentCo
     pairs = experiment_pairs(cfg)
     total_contam = sum(1 for r in results if r.contaminated)
 
-    # One shared estimator pass: identical CIs to summary.json / badge / markdown.
+    # One shared estimator pass: identical CIs to summary.json / verdict / markdown.
     est = compute_estimates(results, cfg, metrics, seed)
     pair_itt = {key: p["itt"] for key, p in est.items()}
 
     pa, pb = primary_pair(cfg)
     pe = pair_itt[pair_key(cfg, pa, pb)][cfg.primary_metric]
-    verdict = (badge_verdict({"ci_low": pe.ci_low, "ci_high": pe.ci_high, "point": pe.point},
-                             _metric_direction(cfg, cfg.primary_metric), pe.n_tasks,
-                             pe.clustered, total_contam) if pe else None)
+    verdict = (comparison_verdict({"ci_low": pe.ci_low, "ci_high": pe.ci_high,
+                                   "point": pe.point},
+                                  _metric_direction(cfg, cfg.primary_metric), pe.n_tasks,
+                                  pe.clustered, total_contam) if pe else None)
     title = cfg.skill_name if len(pairs) == 1 else f"{cfg.skill_name} vs {cfg.skill_b_name}"
 
     # Fresh seeded rng for the judge win-rate CI (independent of compute_estimates'
@@ -5581,13 +5558,18 @@ def ci_exit_code(summary: dict, cfg: ExperimentConfig, policy: str) -> tuple[int
     metric = summary["primary_metric"]
     if v is None:
         return (1, f"no ITT estimate for primary metric '{metric}'")
+    # A significant difference that favours the treatment arm is an improvement; one
+    # that favours the control/reference arm is a regression. Inconclusive = neither.
+    sig_improvement = v["label"] == "significant" and v["direction"] > 0
+    sig_regression = v["label"] == "significant" and v["direction"] < 0
     if policy == "require-improvement":
-        if v["label"] == "verified":
-            return (0, f"PASS: {metric} verified improvement {v['point'] * 100:+.0f}%")
+        if sig_improvement:
+            return (0, f"PASS: {metric} significant improvement {v['point'] * 100:+.0f}%")
         return (1, f"FAIL (require-improvement): {metric} is {v['label']}")
     # default: no-regression
-    if v["label"] == "regressed":
-        return (1, f"FAIL (no-regression): {metric} regressed {v['point'] * 100:+.0f}%")
+    if sig_regression:
+        return (1, f"FAIL (no-regression): {metric} significant regression "
+                   f"{v['point'] * 100:+.0f}%")
     return (0, f"PASS (no-regression): {metric} is {v['label']}")
 
 
@@ -5689,7 +5671,8 @@ def _run_and_outputs(cfg: ExperimentConfig, tasks: list[Task], resume: bool = Fa
 def _demo_results() -> list[RunResult]:
     """The bundled example, generated IN-CODE so it ships with the single module
     (no data file needed) and `uvx skill-ab demo` works offline. Honest story: the
-    skill clearly helps tests_pass on 2 tasks, no contamination -> a real 'verified'."""
+    skill clearly helps tests_pass on 2 tasks, no contamination -> a 'significant'
+    difference favouring the skill arm."""
     data = {
         "add-email-validation": {
             Arm.SKILL_ON: [(1, 1, 42, True), (1, 1, 38, True), (1, 1, 55, True),
@@ -5758,7 +5741,7 @@ def _demo_results() -> list[RunResult]:
 
 
 def cmd_demo(out_dir: Path) -> None:
-    """Render the in-code bundled example into an HTML report + badge with ZERO
+    """Render the in-code bundled example into an HTML report with ZERO
     claude/git/network/cost. Always offline -- this command never spends money."""
     out_dir.mkdir(parents=True, exist_ok=True)
     results = _demo_results()
@@ -5770,11 +5753,7 @@ def cmd_demo(out_dir: Path) -> None:
     html_path.write_text(build_html_report(results, Preflight(), cfg, manifest))
     summary = summary_dict(results, cfg, manifest)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2))
-    verdict = primary_verdict(summary, cfg)
-    svg_path = out_dir / "badge.svg"
-    if verdict:
-        svg_path.write_text(render_badge_svg(cfg.primary_metric, verdict))
-    print(f"demo report: {html_path}\ndemo badge:  {svg_path}\n"
+    print(f"demo report: {html_path}\n"
           f"open the HTML to see the on/off diff drill-down. No money spent.")
 
 
@@ -5993,11 +5972,6 @@ def main(argv: list[str] | None = None) -> int:
     prep.add_argument("--jsonl", type=Path, default=None)
     prep.add_argument("-o", "--out", type=Path, default=Path("skill-ab-report.html"))
 
-    pb = sub.add_parser("badge", help="emit an SVG + markdown badge from summary.json")
-    pb.add_argument("-s", "--summary", type=Path, default=Path("summary.json"))
-    pb.add_argument("-c", "--config", type=Path, default=Path("skillab.toml"))
-    pb.add_argument("-o", "--out", type=Path, default=Path("skill-ab-badge.svg"))
-
     pp = sub.add_parser("plan", help="dry-run: project cost/time + MDE before spending")
     _cfg_args(pp)
     pp.add_argument("--cost-per-run", type=float, default=None)
@@ -6011,7 +5985,7 @@ def main(argv: list[str] | None = None) -> int:
                     default="no-regression")
     pc.add_argument("--html", type=Path, default=None)
 
-    pd = sub.add_parser("demo", help="render a bundled example report+badge (offline, free)")
+    pd = sub.add_parser("demo", help="render a bundled example report (offline, free)")
     pd.add_argument("-o", "--out", type=Path, default=Path("skill-ab-demo"))
 
     ps = sub.add_parser("serve", help="launch the local web app (uses your Claude "
@@ -6047,16 +6021,6 @@ def main(argv: list[str] | None = None) -> int:
                         jp.read_text().splitlines() if line.strip()] if jp.exists() else None)
         args.out.write_text(build_html_report(results, Preflight(), cfg, manifest, comparisons))
         print(f"HTML report: {args.out}")
-        return 0
-    if args.cmd == "badge":
-        summary = json.loads(args.summary.read_text())
-        cfg, _ = (load_config(args.config) if args.config.exists()
-                  else (_build_example()[0], None))
-        verdict = primary_verdict(summary, cfg)
-        if not verdict:
-            raise SystemExit(f"no ITT estimate for primary metric in {args.summary}")
-        args.out.write_text(render_badge_svg(summary["primary_metric"], verdict))
-        print(badge_markdown(summary["primary_metric"], verdict, str(args.out)))
         return 0
     if args.cmd == "plan":
         cfg, tasks = _load_cfg_tasks(args)

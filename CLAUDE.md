@@ -45,8 +45,8 @@ The harness runs N arms, each defined by "install this skill (or nothing)".
 - 2-arm (default): `skill_on` (cfg.skill_src) vs `skill_off` (no-skill control).
 - 3-arm head-to-head: set `skill_b_src`/`skill_b_name` → `skill_on` (A), `skill_b`
   (B), `skill_off` (control); the report covers all pairwise comparisons
-  (`experiment_pairs`), the badge uses `primary_pair` (A vs B), and the blind judge
-  runs every pair. Resolve arms/labels via `experiment_arms` / `arm_skill` /
+  (`experiment_pairs`), the report headline uses `primary_pair` (A vs B), and the
+  blind judge runs every pair. Resolve arms/labels via `experiment_arms` / `arm_skill` /
   `arm_label`; never hardcode the two-arm assumption.
 - Validity is arm-symmetric now: `contaminated` = a FOREIGN skill fired
   (`contaminated_by`), detected per-arm via `detect_contamination`. `skill_activated`
@@ -142,12 +142,16 @@ the local-app server (token auth, Host/Origin, runner_* refusal, demo run, estim
 ## Run
 Now a real CLI (stdlib only; needs `git` + `claude` on PATH). `python
 skill_ab_harness.py <cmd>` or `skill-ab <cmd>` after install:
-- `demo` — offline, free example report+badge (zero claude calls)
-- `init` / `run` / `report` / `badge` / `plan` / `ci` (see README + `plans/`)
+- `demo` — offline, free example report (zero claude calls)
+- `init` / `run` / `report` / `plan` / `ci` (see README + `plans/`)
 
 Config is a TOML (`skillab.toml`: `[experiment]` → `ExperimentConfig`, `[[task]]` →
 `Task`) loaded by `load_config`; `--example` keeps the old hand-coded path. Every run
 writes `results_dir/{results.jsonl, manifest.json, summary.json}` (portable schema in
-`results.schema.json`). The verdict badge is self-policing (grey unless the CI excludes
-0 AND the run is trustworthy). v0.2.0 added all of `plans/` — keep `__version__` and
+`results.schema.json`). This is a comparison benchmark, not a pass/fail build:
+`comparison_verdict` labels a difference **significant** (95% CI excludes 0 AND ≥2
+clustered tasks, no contamination) or **inconclusive**; the winner is named in the
+headline, never as verified/regressed. The shields badge artifact was retired (the
+`ci` command keeps a real pass/fail gate). v0.2.0 added all of `plans/` — keep
+`__version__` and
 `pyproject.toml` version in sync.

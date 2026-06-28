@@ -367,7 +367,7 @@ def test_manifest_and_summary_shape():
     assert man["seed"] == 3 and man["timestamp"] == 1.0 and man["harness_version"]
     s = h.summary_dict(_two_task_results(), cfg, man)
     assert s["schema_version"] == 2 and s["primary_metric"] == "tests_pass"
-    # convenience mirror of the primary pair still present for badge/CI consumers
+    # convenience mirror of the primary pair still present for verdict/CI consumers
     assert "tests_pass" in s["itt"] and "ci_low" in s["itt"]["tests_pass"]
     assert set(["on_valid", "off_valid", "off_contaminated"]) <= set(s["validity"])
     # 2-arm -> one comparison (skill vs control)
@@ -526,7 +526,7 @@ def test_gallery_renders_two_summaries():
     out = h.build_gallery_html([{"summary": sx, "report_href": "x/report.html"},
                                 {"summary": sy, "report_href": None}])
     assert "skill-x" in out and "skill-y" in out
-    # gallery cards now show a clean verdict chip (delta-chip), not the raw badge SVG
+    # gallery cards show a clean comparison chip (delta-chip), no badge artifact
     assert "self-reported" in out and "delta-chip" in out
     assert "open report" in out          # the linked entry surfaces its report link
 
@@ -601,25 +601,37 @@ def test_cross_runner_report_downgrades_and_banners():
 
 
 # --------------------------------------------------------------------------
-# Badge (plan 003)
+# Comparison verdict (significant / inconclusive + direction)
 # --------------------------------------------------------------------------
 
-def test_badge_verdict_self_polices():
+def test_comparison_verdict_self_polices():
     base = {"point": 0.18, "ci_low": 0.06, "ci_high": 0.30}
-    assert h.badge_verdict(base, 1, 3, True, 0)["label"] == "verified"
-    assert h.badge_verdict({"point": 0.1, "ci_low": -0.05, "ci_high": 0.25},
-                           1, 3, True, 0)["label"] == "inconclusive"
-    assert h.badge_verdict(base, 1, 1, True, 0)["label"] == "inconclusive"   # <2 tasks
-    assert h.badge_verdict(base, 1, 3, False, 0)["label"] == "inconclusive"  # unclustered
-    assert h.badge_verdict(base, 1, 3, True, 2)["label"] == "inconclusive"   # contaminated
+    # CI clears 0 + trustworthy -> significant; direction favours the left/treatment arm.
+    v = h.comparison_verdict(base, 1, 3, True, 0)
+    assert v["label"] == "significant" and v["direction"] == 1 and v["tone"] == "accent"
+    # CI straddles 0 -> inconclusive (flat tone).
+    incon = h.comparison_verdict({"point": 0.1, "ci_low": -0.05, "ci_high": 0.25},
+                                 1, 3, True, 0)
+    assert incon["label"] == "inconclusive" and incon["tone"] == "flat"
+    assert h.comparison_verdict(base, 1, 1, True, 0)["label"] == "inconclusive"   # <2 tasks
+    assert h.comparison_verdict(base, 1, 3, False, 0)["label"] == "inconclusive"  # unclustered
+    assert h.comparison_verdict(base, 1, 3, True, 2)["label"] == "inconclusive"   # contaminated
+    # A significant effect AGAINST the treatment arm is still 'significant', dir -1
+    # (the winner/direction is in the headline, not a 'regressed' verdict).
     reg = {"point": -0.2, "ci_low": -0.3, "ci_high": -0.05}
-    assert h.badge_verdict(reg, 1, 3, True, 0)["label"] == "regressed"
+    rv = h.comparison_verdict(reg, 1, 3, True, 0)
+    assert rv["label"] == "significant" and rv["direction"] == -1
+    # Metric direction flips the sense of 'favours left': lower-is-better + a negative
+    # point favours the left arm (direction +1).
+    lower = h.comparison_verdict(reg, -1, 3, True, 0)
+    assert lower["label"] == "significant" and lower["direction"] == 1
 
 
-def test_render_badge_svg_is_svg():
-    v = h.badge_verdict({"point": 0.18, "ci_low": 0.06, "ci_high": 0.30}, 1, 3, True, 0)
-    svg = h.render_badge_svg("tests_pass", v)
-    assert svg.startswith("<svg") and "tests_pass" in svg
+def test_no_badge_artifact_functions():
+    # The shields badge artifact is retired; only the comparison verdict survives.
+    for gone in ("render_badge_svg", "badge_endpoint_json", "badge_markdown",
+                 "badge_verdict"):
+        assert not hasattr(h, gone), f"{gone} should have been removed"
 
 
 # --------------------------------------------------------------------------
@@ -689,7 +701,7 @@ def test_tooltip_payload_is_double_escaped_against_attr_roundtrip():
 
 def test_inconclusive_verdict_does_not_assert_settled_headline():
     # 1 task, ON tests_pass=1.0 vs OFF=0.0 -> primary CI [1.0,1.0] (clears 0),
-    # but n_tasks<2 so badge_verdict -> "inconclusive". The hero headline must
+    # but n_tasks<2 so comparison_verdict -> "inconclusive". The hero headline must
     # NOT read as a settled claim when the pill says inconclusive.
     cfg = _cfg()
     res = []
@@ -707,7 +719,7 @@ def test_inconclusive_verdict_does_not_assert_settled_headline():
     # primary comparison CI clears 0 -> the bug condition is actually present
     prim = next(c for c in data["comparisons"] if c["key"] == data["meta"]["primaryPair"])
     assert prim["itt"]["tests_pass"]["lo"] > 0, "setup must make the primary CI exclude 0"
-    assert "Inconclusive at this scale" in doc      # honest pill text intact
+    assert "No significant difference" in doc       # honest pill text intact
     assert "Suggestive only" in doc                  # the fix shipped
 
 
@@ -796,26 +808,34 @@ def test_html_blob_judge_win_rate_null_when_no_decisive():
 
 
 def test_verdict_blob_maps_each_label():
-    cases = {"verified": ("good", "Significant effect"),
-             "regressed": ("bad", "Regression detected"),
-             "inconclusive": ("flat", "Inconclusive at this scale")}
-    for label, (tone, text) in cases.items():
-        b = h._verdict_blob({"label": label})
-        assert b == {"label": label, "tone": tone, "text": text, "crossRunner": False}
+    # Comparison framing: significant -> accent "Significant difference"; inconclusive
+    # -> flat "No significant difference". No pass/fail "verified"/"regressed" text.
+    sig = h._verdict_blob({"label": "significant", "direction": 1})
+    assert sig == {"label": "significant", "tone": "accent",
+                   "text": "Significant difference", "crossRunner": False}
+    incon = h._verdict_blob({"label": "inconclusive", "direction": -1})
+    assert incon == {"label": "inconclusive", "tone": "flat",
+                     "text": "No significant difference", "crossRunner": False}
     assert h._verdict_blob(None)["label"] == "inconclusive"   # no KeyError
 
 
 def test_verdict_blob_cross_runner_downgrades_to_suggestive():
-    # A cross-runner primary pair can never read green/red -- it's confounded.
-    for label in ("verified", "regressed", "inconclusive"):
-        b = h._verdict_blob({"label": label}, cross_runner=True)
+    # A cross-runner primary pair can never read accent -- it's confounded.
+    for label, direction in (("significant", 1), ("significant", -1),
+                             ("inconclusive", 1)):
+        b = h._verdict_blob({"label": label, "direction": direction}, cross_runner=True)
         assert b["label"] == "suggestive"
-        assert b["tone"] == "flat"          # grey, never good/bad
+        assert b["tone"] == "flat"          # grey, never accent
         assert b["crossRunner"] is True
         assert "Suggestive" in b["text"]
-    # the measured direction still leaks through as a hint, not a verdict
-    assert "second CLI" in h._verdict_blob({"label": "verified"}, cross_runner=True)["text"]
-    assert "first CLI" in h._verdict_blob({"label": "regressed"}, cross_runner=True)["text"]
+    # a SIGNIFICANT cross-runner gap still leaks its direction as a hint, not a verdict
+    assert "second CLI" in h._verdict_blob(
+        {"label": "significant", "direction": 1}, cross_runner=True)["text"]
+    assert "first CLI" in h._verdict_blob(
+        {"label": "significant", "direction": -1}, cross_runner=True)["text"]
+    # an inconclusive cross-runner pair adds no directional hint
+    assert h._verdict_blob({"label": "inconclusive", "direction": 1},
+                           cross_runner=True)["text"].endswith("skill/model change")
 
 
 def test_html_script_structural_and_optional_node_check():
@@ -1384,7 +1404,7 @@ def test_ci_exit_code_policies():
 # Demo offline (plan 005) + packaging-independence
 # --------------------------------------------------------------------------
 
-def test_demo_results_earns_verified_offline():
+def test_demo_results_earns_significant_offline():
     res = h._demo_results()
     assert len(res) == 24 and all(r.agent_ok for r in res)
     cfg = h.ExperimentConfig(repo_path=Path("."), base_ref="HEAD",
@@ -1394,7 +1414,8 @@ def test_demo_results_earns_verified_offline():
     man = h.experiment_manifest(cfg, timestamp=0.0, offline=True)
     assert man["claude_cli_version"] is None and man["base_ref_sha"] is None  # tool-free
     s = h.summary_dict(res, cfg, man)
-    assert h.primary_verdict(s, cfg)["label"] == "verified"
+    v = h.primary_verdict(s, cfg)
+    assert v["label"] == "significant" and v["direction"] == 1   # favours the skill arm
     # summary q-values are populated for secondary metrics (BH applied)
     assert s["itt"]["lint_pass"]["q_value"] is not None
 
@@ -1404,7 +1425,8 @@ def test_demo_command_writes_offline():
     h.cmd_demo(out)
     doc = (out / "report.html").read_text()
     assert doc.startswith("<!doctype html") and "</html>" in doc and "<table" in doc
-    assert (out / "badge.svg").exists() and "verified" in (out / "badge.svg").read_text()
+    assert (out / "summary.json").exists()
+    assert not (out / "badge.svg").exists()      # the badge artifact is retired
 
 
 def test_demo_live_flag_removed():
@@ -1878,7 +1900,7 @@ def test_pr_target_denies_github_mutation():
         h.resolve_skill, h.resolve_target = orig
 
 
-def test_single_task_badge_warning():
+def test_single_task_inconclusive_warning():
     cfg = _cfg()
     res = []
     for arm, v in ((Arm.SKILL_ON, 1.0), (Arm.SKILL_OFF, 0.0)):

@@ -191,8 +191,9 @@ _APP_CSS = """
     border-color:var(--good-line)}
   .pill.bad{color:var(--bad); background:var(--bad-bg);
     border-color:var(--bad-line)}
-  .pill.run{color:var(--accent-ink); border-color:color-mix(in srgb,var(--accent) 30%,
-    transparent); background:color-mix(in srgb,var(--accent) 12%, transparent)}
+  .pill.run, .pill.accent{color:var(--accent-ink);
+    border-color:color-mix(in srgb,var(--accent) 30%, transparent);
+    background:color-mix(in srgb,var(--accent) 12%, transparent)}
   .demo-badge{display:inline-flex; align-items:center; gap:6px; font-size:var(--text-xs);
     font-weight:var(--fw-bold); letter-spacing:.03em; color:#7a5800; background:#fff3d6;
     border:1px solid #f0d488; border-radius:var(--radius-xs); padding:3px 9px}
@@ -562,9 +563,11 @@ _APP_JS = r"""
   }
 
   function verdictPill(v){
+    // A comparison verdict, not a build status: "significant" reads accent (a real
+    // difference), "inconclusive" stays grey -- never green-pass/red-fail. The
+    // run-status pills (running/error/aborted) keep their own tones.
     var tone = "muted", label = v || "—";
-    if(v === "verified"){ tone = "good"; }
-    else if(v === "regressed"){ tone = "bad"; }
+    if(v === "significant"){ tone = "accent"; }
     else if(v === "running"){ tone = "run"; }
     else if(v === "error" || v === "aborted"){ tone = "bad"; }
     var cls = (tone === "muted") ? "pill" : "pill " + tone;
@@ -703,8 +706,8 @@ _APP_JS = r"""
       : "#/results/" + encodeURIComponent(r.id);
     var statusPill = (r.status && r.status !== "done")
       ? verdictPill(r.status) : null;
-    // The verdict pill conveys the outcome; the raw shields badge.svg is redundant
-    // noise in a card (it lives on the Results page for sharing). Title left, pill right.
+    // The comparison pill (significant / inconclusive) conveys the outcome at a
+    // glance. Title left, pill right; the shareable summary lives on the Results page.
     var card = E("a", {class:"card run-card", href:dest}, [
       E("div", {class:"rc-top"}, [
         skillTitle(r.skill_a, r.skill_b),
@@ -1380,18 +1383,19 @@ _APP_JS = r"""
       // stays the standalone artifact, just linked rather than embedded.
       var headBox = E("div", {class:"card card-pad", style:"margin-bottom:14px"});
       slot.appendChild(headBox);
-      renderHeadline(headBox, card);
-      headBox.appendChild(E("div", {class:"row", style:"margin-top:18px; gap:10px"}, [
+      var btnRow = E("div", {class:"row", style:"margin-top:18px; gap:10px; flex-wrap:wrap"}, [
         E("a", {class:"btn btn-primary", href:withTok(reportUrl),
           target:"_blank", rel:"noopener"}, "Open full report →"),
         E("a", {class:"btn", href:"#/"}, "Back to Dashboard")
-      ]));
+      ]);
+      renderHeadline(headBox, card, btnRow);
+      headBox.appendChild(btnRow);
       slot.appendChild(E("p", {class:"hint", style:"margin-top:12px",
         text:"The full report — interactive diffs, per-arm charts, the treatment "
           + "panel, and the blind-judge panel — opens in a new tab."}));
     }
 
-    function renderHeadline(box, card){
+    function renderHeadline(box, card, btnRow){
       card = card || {};
       clear(box);
       box.appendChild(E("div", {class:"row",
@@ -1404,7 +1408,8 @@ _APP_JS = r"""
       box.appendChild(deltaEl);
       box.appendChild(validEl);
       // The card carries skill names + verdict; the point delta + validity live in
-      // summary.json (existing token-gated /summary), fetched here for the headline.
+      // summary.json (existing token-gated /summary), fetched ONCE here for the
+      // headline AND the "Copy comparison summary" button (no second round-trip).
       api("/api/runs/" + encodeURIComponent(id) + "/summary").then(function(sm){
         var metric = sm && sm.primary_metric;
         var est = (sm && sm.itt && metric) ? sm.itt[metric] : null;
@@ -1422,6 +1427,7 @@ _APP_JS = r"""
             + (v.off_valid != null ? v.off_valid : "—") + " control"
             + (v.off_contaminated ? " · " + v.off_contaminated + " contaminated" : "");
         } else { validEl.remove(); }
+        if(btnRow && sm) addCopySummaryButton(btnRow, card, sm);
       }).catch(function(){ deltaEl.remove(); validEl.remove(); });
     }
 
@@ -1461,6 +1467,92 @@ _APP_JS = r"""
       if(est.ci_low == null || est.ci_high == null) return "";
       return "  95% CI [" + signedPct(est.ci_low) + ", " +
         signedPct(est.ci_high) + "]";
+    }
+
+    // ---- shareable comparison summary (markdown, no session token) ----
+    function fmtMetric(metric, v, signed){
+      if(v == null) return "—";
+      var sign = signed ? (v >= 0 ? "+" : "-") : "";
+      var a = signed ? Math.abs(v) : v;
+      if(metric === "cost_usd") return sign + "$" + a.toFixed(3);
+      if(metric === "diff_lines") return sign + a.toFixed(1);
+      return sign + (a * 100).toFixed(0) + "%";
+    }
+    function metricLowerBetter(metric){
+      return metric === "cost_usd" || metric === "diff_lines";
+    }
+    function buildComparisonMarkdown(card, sm){
+      // Mirrors the engine's comparison_verdict rule (significant = 95% CI excludes 0
+      // AND trustworthy: >=2 clustered tasks, no contamination). Pure presentation;
+      // NO session token ever enters the copied text.
+      var prim = sm.primary_metric;
+      var pair = (sm.comparisons && sm.primary_pair)
+        ? sm.comparisons[sm.primary_pair] : null;
+      var itt = (pair && pair.itt) || sm.itt || {};
+      var a = (pair && pair.a) || card.skill_a || "skill";
+      var b = (pair && pair.b) || card.skill_b || "control";
+      var pe = itt[prim] || {};
+      var nTasks = pe.n_tasks != null ? pe.n_tasks : "?";
+      var k = (sm.manifest && sm.manifest.k != null) ? sm.manifest.k : "?";
+      var contam = (sm.validity && sm.validity.off_contaminated) || 0;
+      var lines = ["## skill-ab: " + a + " vs " + b
+        + "  (" + nTasks + " tasks, k=" + k + ", ITT)"];
+      var rest = Object.keys(itt).filter(function(m){ return m !== prim; });
+      [prim].concat(rest).forEach(function(m){
+        var e = itt[m];
+        if(!e || e.point == null) return;
+        var lo = e.ci_low, hi = e.ci_high;
+        var trustworthy = e.clustered && (e.n_tasks || 0) >= 2 && contam === 0;
+        var excludesZero = !(lo <= 0 && 0 <= hi);
+        var sig = trustworthy && excludesZero;
+        var ci = "[" + fmtMetric(m, lo, true) + ", " + fmtMetric(m, hi, true) + "]";
+        var tail;
+        if(sig){
+          var favorsLeft = metricLowerBetter(m) ? e.point < 0 : e.point > 0;
+          tail = "significant (favors " + (favorsLeft ? a : b) + ")";
+        } else {
+          tail = "no significant difference";
+        }
+        lines.push("- " + m + ": " + fmtMetric(m, e.point, true) + " " + ci
+          + " — " + tail);
+      });
+      (sm.judge || []).forEach(function(j){
+        var winner = (j.win_rate_a != null && j.win_rate_a > 0.5) ? j.a
+          : (j.win_rate_a != null && j.win_rate_a < 0.5) ? j.b : null;
+        var tally = (j.a_wins != null && j.b_wins != null)
+          ? " (" + j.a_wins + "–" + j.b_wins + ")" : "";
+        lines.push("- blind judge: "
+          + (winner ? "prefers " + winner : "no decisive preference") + tally);
+      });
+      return lines.join("\n") + "\n";
+    }
+    function copyText(text){
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function(resolve, reject){
+        try {
+          var ta = document.createElement("textarea");
+          ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+          document.body.appendChild(ta); ta.focus(); ta.select();
+          var ok = document.execCommand("copy");
+          document.body.removeChild(ta);
+          if(ok){ resolve(); } else { reject(new Error("copy failed")); }
+        } catch(e){ reject(e); }
+      });
+    }
+    function addCopySummaryButton(btnRow, card, sm){
+      if(btnRow.querySelector(".copy-md")) return;     // idempotent if render re-runs
+      var btn = E("button", {class:"btn copy-md", type:"button"},
+        "Copy comparison summary");
+      btn.addEventListener("click", function(){
+        copyText(buildComparisonMarkdown(card, sm)).then(function(){
+          var was = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(function(){ btn.textContent = was; }, 1600);
+        }).catch(showError);
+      });
+      btnRow.appendChild(btn);
     }
   }
 

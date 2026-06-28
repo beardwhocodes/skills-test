@@ -2,7 +2,7 @@
 
 A thin orchestration layer over the engine (`skill_ab_harness`). It NEVER
 re-implements statistics, scoring, or rendering — it drives `run_experiment` and
-serves the engine's own `report.html` / `summary.json` / `badge.svg`.
+serves the engine's own `report.html` / `summary.json`.
 
 Security posture (this server spawns paid, file-editing agents):
   * Binds 127.0.0.1 ONLY — never 0.0.0.0.
@@ -231,7 +231,7 @@ def _card_from_info(info: _RunInfo) -> dict:
         "primary_metric": m.get("primary_metric", "tests_pass"),
         "created_ts": m.get("created_ts"),
         "cost_usd": info.spent_usd or None, "n_valid": info.n_valid,
-        "report_url": None, "badge_url": None, "demo": bool(m.get("demo")),
+        "report_url": None, "demo": bool(m.get("demo")),
     }
 
 
@@ -382,10 +382,10 @@ def _summary_card(summary: dict, verdict: dict | None) -> dict:
 
 def _finalize_run(server, run_id: str, cfg: h.ExperimentConfig,
                   results: list, pf, demo: bool, tasks: list | None = None) -> None:
-    """Write report.html + summary.json + badge.svg into the run dir, persist
-    meta.json (so demo/title survive a restart), then publish experiment_done.
-    `tasks` (real runs) seeds the manifest's treatments block (the IV panel); the
-    demo has no Task objects, so it falls back to the prompt-free skill identity."""
+    """Write report.html + summary.json into the run dir, persist meta.json (so
+    demo/title survive a restart), then publish experiment_done. `tasks` (real runs)
+    seeds the manifest's treatments block (the IV panel); the demo has no Task
+    objects, so it falls back to the prompt-free skill identity."""
     run_dir = cfg.results_dir
     run_dir.mkdir(parents=True, exist_ok=True)
     manifest = h.experiment_manifest(cfg, seed=0, timestamp=time.time(),
@@ -394,11 +394,6 @@ def _finalize_run(server, run_id: str, cfg: h.ExperimentConfig,
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     (run_dir / "report.html").write_text(h.build_html_report(results, pf, cfg, manifest))
     verdict = h.primary_verdict(summary, cfg)
-    badge_url = None
-    if verdict:
-        (run_dir / "badge.svg").write_text(
-            h.render_badge_svg(summary["primary_metric"], verdict))
-        badge_url = f"/api/runs/{run_id}/badge"
     info = server.registry.get(run_id)
     if info is not None:
         try:
@@ -409,7 +404,7 @@ def _finalize_run(server, run_id: str, cfg: h.ExperimentConfig,
         "type": "experiment_done", "run_id": run_id,
         "verdict": verdict["label"] if verdict else None,
         "primary_metric": summary["primary_metric"],
-        "report_url": f"/api/runs/{run_id}/report", "badge_url": badge_url,
+        "report_url": f"/api/runs/{run_id}/report",
         "summary_card": _summary_card(summary, verdict)})
 
 
@@ -776,8 +771,6 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send_file(run_dir / "summary.json", "application/json")
         if sub == "report":
             return self._send_file(run_dir / "report.html", "text/html; charset=utf-8")
-        if sub == "badge":
-            return self._send_file(run_dir / "badge.svg", "image/svg+xml")
         self._send_json({"error": "not found"}, 404)
 
     def _handle_estimate(self, body: dict) -> None:
