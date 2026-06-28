@@ -79,7 +79,10 @@ _APP_CSS = """
     box-shadow:0 0 0 4px color-mix(in srgb,#d98a15 22%, transparent)}
   .health-dot.bad{background:var(--bad);
     box-shadow:0 0 0 4px color-mix(in srgb,var(--bad) 22%, transparent)}
-  .view{max-width:min(95vw,1800px); width:100%; margin:0 auto; padding:24px 26px 64px}
+  /* App chrome (dashboard / forms / settings / results-summary) gets a comfortable
+     CENTERED width -- full-width makes these sparse on a wide screen. The full report
+     (its own page) keeps the wide _HTML_STYLE `.wrap`; it's the content that wants room. */
+  .view{max-width:1280px; width:100%; margin:0 auto; padding:26px 28px 72px}
 
   /* ---------- top-bar usage ticker (live runs) ---------- */
   .ticker{display:flex; align-items:center; gap:9px; font-size:var(--text-sm);
@@ -164,10 +167,11 @@ _APP_CSS = """
   .run-card:active{transform:translateY(0) scale(.997)}
   .run-card .rc-top{display:flex; align-items:center; gap:8px;
     justify-content:space-between}
-  .run-card .rc-title{font-family:var(--mono); font-size:var(--text-sm); font-weight:var(--fw-medium);
-    color:var(--ink); overflow:hidden; text-overflow:ellipsis;
-    white-space:nowrap}
-  .run-card .rc-title .vs{color:var(--faint); font-weight:var(--fw-normal); padding:0 .3em}
+  /* skillTitle() is reused in the Results headline too, so these are NOT scoped to
+     .run-card -- otherwise the headline loses the mono font + the "vs" spacing. */
+  .rc-title{font-family:var(--mono); font-size:var(--text-sm); font-weight:var(--fw-medium);
+    color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .rc-title .vs{color:var(--faint); font-weight:var(--fw-normal); padding:0 .4em}
   .run-card .rc-meta{display:flex; flex-wrap:wrap; gap:6px 14px;
     font-size:var(--text-xs); color:var(--muted)}
   .run-card .rc-meta b{color:var(--ink-2); font-weight:var(--fw-medium)}
@@ -980,7 +984,7 @@ _APP_JS = r"""
       syncRunnerB();
     }).catch(function(){ /* picker is optional; free text still works */ });
 
-    var form = E("div", {class:"card card-pad"}, [
+    var form = E("div", {class:"card card-pad", style:"max-width:880px"}, [
       skillsList,
       E("div", {class:"form"}, [
         warnBanner,
@@ -1052,7 +1056,7 @@ _APP_JS = r"""
       ])
     ]);
     view.appendChild(form);
-    view.appendChild(E("p", {class:"note-card", style:"margin-top:14px",
+    view.appendChild(E("p", {class:"note-card", style:"margin-top:14px; max-width:880px",
       text:SUB_NOTE}));
     // Pre-flight health (item 2): cached-read once; on a missing claude raise the
     // warning banner + lock the real Start (demo stays usable).
@@ -1346,7 +1350,8 @@ _APP_JS = r"""
       E("h2", {text:"Results"}),
       E("span", {class:"live-id", text:id})
     ]));
-    var slot = E("div", {});
+    // A focused summary reads better in a column than stretched across the page.
+    var slot = E("div", {style:"max-width:780px"});
     view.appendChild(slot);
     slot.appendChild(loadingEl("loading results…"));
 
@@ -1518,7 +1523,7 @@ _APP_JS = r"""
       E("h2", {text:"Gallery"}),
       E("span", {class:"hint", text:"self-reported summaries across all runs"})
     ]));
-    view.appendChild(E("div", {class:"card card-pad"}, [
+    view.appendChild(E("div", {class:"card card-pad", style:"max-width:720px"}, [
       E("p", {class:"hint", style:"max-width:62ch; line-height:1.62",
         text:"A static index of self-reported, unverified run summaries — the same "
           + "shareable page skill-ab generates. It opens as its own full page."}),
@@ -1532,7 +1537,7 @@ _APP_JS = r"""
   // ===================== SETTINGS / HEALTH =====================
   function viewSettings(){
     view.appendChild(E("div", {class:"sec-h"}, [E("h2", {text:"Settings"})]));
-    var slot = E("div", {class:"card card-pad"});
+    var slot = E("div", {class:"card card-pad", style:"max-width:780px"});
     view.appendChild(slot);
     slot.appendChild(loadingEl("checking claude…"));
     refreshHealth().then(function(hd){
@@ -1567,7 +1572,7 @@ _APP_JS = r"""
       slot.appendChild(dl);
     }).catch(function(e){ clear(slot);
       slot.appendChild(E("p", {text:"health check failed"})); showError(e); });
-    view.appendChild(E("p", {class:"note-card", style:"margin-top:14px",
+    view.appendChild(E("p", {class:"note-card", style:"margin-top:14px; max-width:780px",
       text:"Every run uses your Claude Code subscription via the claude -p " +
         "CLI under your existing login — no separate credentials are read. " +
         "The “cost” figure is a usage proxy bounded by your plan's " +
