@@ -397,7 +397,7 @@ create a separate doc. The subsection must answer the spike's design questions
 concisely. Required content (paraphrase into prose/bullets; keep lines readable):
 
 1. **Config / CLI surface** — recommended: a `noise_floor: bool` on
-   `ExperimentConfig` (and a `skill-ab run --null` flag that sets it), which
+   `ExperimentConfig` (and a `skills-test run --null` flag that sets it), which
    selects a two-control experiment: `experiment_arms` →
    `[Arm.SKILL_OFF, <new SKILL_OFF_B>]`, both `arm_skill` → `(None, None)`,
    labelled `control_a` / `control_b` to avoid the `control_vs_control`
@@ -514,4 +514,4 @@ spike on purpose):
 - A reviewer should scrutinize: that the contamination rule stays
   arm-symmetric for both controls (any skill firing = contaminated), and that
   the noise-floor summary is clearly labelled so it is never mistaken for a real
-  skill A/B result.
+  skills-test result.

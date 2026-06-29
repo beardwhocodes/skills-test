@@ -18,7 +18,7 @@
 
 ## Why this matters
 
-The flagship adoption move: `uvx skill-ab-harness demo` produces a real HTML
+The flagship adoption move: `uvx skills-test demo` produces a real HTML
 report + badge **in seconds, with zero config, zero auth, zero cost** — by
 rendering a *bundled, pre-recorded* `results.jsonl` instead of spending money on
 `claude`. That is the tweetable one-liner and the thing a newcomer runs first to
@@ -117,7 +117,7 @@ def cmd_demo(out_dir: Path, live: bool = False) -> None:
 Add the subparser in `main()`:
 ```python
 pd = sub.add_parser("demo", help="render a bundled example report+badge (offline, free)")
-pd.add_argument("-o", "--out", type=Path, default=Path("skill-ab-demo"))
+pd.add_argument("-o", "--out", type=Path, default=Path("skills-test-demo"))
 pd.add_argument("--live", action="store_true", help="actually run claude on a generated fixture (costs $)")
 ```
 handler: `cmd_demo(args.out, args.live); return 0`.

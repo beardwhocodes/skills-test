@@ -1,4 +1,4 @@
-# Demo config (used by `skill-ab demo --live`, and as a copy-paste starting point).
+# Demo config (used by `skills-test demo`, and as a copy-paste starting point).
 [experiment]
 repo_path  = "."                          # a real run needs a git repo here
 base_ref   = "main"

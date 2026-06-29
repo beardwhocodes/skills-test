@@ -1,4 +1,4 @@
-"""skill_ab_server — the local HTTP/SSE backend for `skill-ab serve`.
+"""skill_ab_server — the local HTTP/SSE backend for `skills-test serve`.
 
 A thin orchestration layer over the engine (`skill_ab_harness`). It NEVER
 re-implements statistics, scoring, or rendering — it drives `run_experiment` and
@@ -894,7 +894,7 @@ def make_server(runs_dir, token, host: str = "127.0.0.1", port: int = 7878) -> _
 
 
 def serve(host: str = "127.0.0.1", port: int = 7878,
-          runs_dir: Path = Path.home() / ".skill-ab" / "runs",
+          runs_dir: Path = Path.home() / ".skills-test" / "runs",
           open_browser: bool = True, token: str | None = None) -> None:
     """Start the local app: build the server, print the tokenized URL, optionally
     open a browser, then serve until Ctrl-C."""

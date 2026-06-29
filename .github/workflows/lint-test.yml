@@ -1,7 +1,7 @@
 # Free, fast lint + test gate. Runs on every push and pull_request.
 # No credentials, no Claude CLI, no network beyond installing ruff — so it costs
 # nothing and gives immediate feedback. The PAID A/B regression gate lives in
-# skill-ab.yml and stays opt-in (label / workflow_dispatch); this complements it.
+# skills-test.yml and stays opt-in (label / workflow_dispatch); this complements it.
 name: lint-test
 on:
   push:

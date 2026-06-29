@@ -27,7 +27,7 @@ The `demo` subcommand advertises a `--live` flag (`help="actually run claude
 (costs $)"`), but passing it is a **guaranteed error**: `cmd_demo` immediately
 raises `SystemExit("demo --live is a follow-up; …")`. The docstring also claims
 "--live runs the real pipeline." This is an advertised-but-broken switch: a user
-who reads `--help` and runs `skill-ab demo --live` gets a crash instead of the
+who reads `--help` and runs `skills-test demo --live` gets a crash instead of the
 behavior the flag promised. The honest, smallest fix is to **remove** the flag
 entirely so the CLI surface matches what `demo` actually does — an offline,
 zero-cost render. (A real live-demo path was intentionally deferred when this was
@@ -48,7 +48,7 @@ def cmd_demo(out_dir: Path, live: bool = False) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     if live:
         raise SystemExit("demo --live is a follow-up; the offline demo spends nothing "
-                         "and shows the full report. Run `skill-ab run` for a real experiment.")
+                         "and shows the full report. Run `skills-test run` for a real experiment.")
     results = _demo_results()
     cfg = ExperimentConfig(repo_path=Path("."), base_ref="HEAD",
                            skill_src=Path("demo_skill"),
@@ -71,7 +71,7 @@ defined at line 3603: `def main(argv: list[str] | None = None) -> int:`):
 
 ```python
     pd = sub.add_parser("demo", help="render a bundled example report+badge (offline, free)")
-    pd.add_argument("-o", "--out", type=Path, default=Path("skill-ab-demo"))
+    pd.add_argument("-o", "--out", type=Path, default=Path("skills-test-demo"))
     pd.add_argument("--live", action="store_true", help="actually run claude (costs $)")
 ```
 

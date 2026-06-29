@@ -195,7 +195,7 @@ class ExperimentConfig:
     #  "inject" — run with --disable-slash-commands (suppress ALL ambient skills incl.
     #     globally-enabled plugins) and force-inject ONLY this arm's SKILL.md body via
     #     --append-system-prompt-file. Use when the skills under test live in a global
-    #     plugin (else both would leak into every arm). `skill-test`/`quick` uses this.
+    #     plugin (else both would leak into every arm). `skills-test quick` uses this.
     isolation: str = "worktree"
     # Robustness knobs
     preflight_repeats: int = 3         # runs of each check on clean base to detect flakiness
@@ -2340,7 +2340,7 @@ def build_gallery_html(entries: list[dict]) -> str:
             continue
         cards.append(_gallery_card(s, e.get("report_href")))
     disclaimer = ("<p class='note'>Every entry below is <b>self-reported</b> and "
-                  "<b>unverified</b> — reproduce via <code>skill-ab run "
+                  "<b>unverified</b> — reproduce via <code>skills-test run "
                   "--from-github</code>.</p>")
     return "".join([
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>",
@@ -5577,7 +5577,7 @@ def ci_exit_code(summary: dict, cfg: ExperimentConfig, policy: str) -> tuple[int
 # Command-line interface
 # ---------------------------------------------------------------------------
 
-_INIT_TEMPLATE = '''# skills-test experiment — edit then run `skill-ab run -c {name}`
+_INIT_TEMPLATE = '''# skills-test experiment — edit then run `skills-test run -c {name}`
 [experiment]
 repo_path  = "{repo}"      # a git repo (worktrees fork from base_ref)
 base_ref   = "main"
@@ -5610,7 +5610,7 @@ def cmd_init(out_path: Path) -> None:
         raise SystemExit(f"{out_path} already exists; refusing to overwrite")
     out_path.write_text(_INIT_TEMPLATE.format(
         name=out_path.name, repo=str(cwd), skill_src=str(skill_dir), skill_name=skill_dir.name))
-    print(f"wrote {out_path} — edit it, then: skill-ab run -c {out_path}")
+    print(f"wrote {out_path} — edit it, then: skills-test run -c {out_path}")
 
 
 def _build_example() -> tuple[ExperimentConfig, list[Task]]:
@@ -5625,7 +5625,7 @@ def _build_example() -> tuple[ExperimentConfig, list[Task]]:
 
 
 def _clone_from_github(url: str, config_name: str) -> tuple[ExperimentConfig, list[Task]]:
-    """Shallow-clone a skill repo and read its committed skill-ab config. The repo's
+    """Shallow-clone a skill repo and read its committed skills-test config. The repo's
     comparison is then reproducible from just the URL.
 
     SECURITY: the cloned config's setup_cmd/test_cmd/prompt run on THIS machine and
@@ -5670,7 +5670,7 @@ def _run_and_outputs(cfg: ExperimentConfig, tasks: list[Task], resume: bool = Fa
 
 def _demo_results() -> list[RunResult]:
     """The bundled example, generated IN-CODE so it ships with the single module
-    (no data file needed) and `uvx skill-ab demo` works offline. Honest story: the
+    (no data file needed) and `uvx skills-test demo` works offline. Honest story: the
     skill clearly helps tests_pass on 2 tasks, no contamination -> a 'significant'
     difference favouring the skill arm."""
     data = {
@@ -5841,7 +5841,7 @@ def resolve_target(target: str, prompt: str | None = None
         # tree or current branch (worktrees fork from this ref). The `+` makes a
         # re-run on a force-pushed PR succeed. The default prompt carries the PR URL so
         # the skill can find it without branch auto-discovery.
-        local_ref = f"skill-ab/pr-{num}"
+        local_ref = f"skills-test/pr-{num}"
         subprocess.run(["git", "fetch", "origin", f"+pull/{num}/head:{local_ref}"],
                        cwd=repo, check=True)
         setup, test = _detect_commands(repo)
@@ -5897,11 +5897,11 @@ def _build_quick(args) -> tuple[ExperimentConfig, list[Task]]:
 
 
 def quick_main(argv: list[str] | None = None) -> int:
-    """`skill-test <skillA> <skillB|none> <target>` — the one-line head-to-head."""
+    """`skills-test quick <skillA> <skillB|none> <target>` — the one-line head-to-head."""
     import argparse
     p = argparse.ArgumentParser(
-        prog="skill-test",
-        description="Quick head-to-head: skill-test <skillA> <skillB|none> <PR-url|branch|.>")
+        prog="skills-test quick",
+        description="Quick head-to-head: skills-test quick <skillA> <skillB|none> <PR-url|branch|.>")
     p.add_argument("skill_a", help="first skill name (or path to its folder)")
     p.add_argument("skill_b", help="second skill name, or none/off/- for skill-A-vs-control")
     p.add_argument("target", help="a GitHub PR URL, a branch name, or '.'/a path")
@@ -5913,7 +5913,7 @@ def quick_main(argv: list[str] | None = None) -> int:
                         "PR-resolution head-to-heads where the full suite is too heavy")
     p.add_argument("-k", type=int, default=3, help="runs per arm per task (default 3)")
     p.add_argument("--no-judge", action="store_true", help="skip the qualitative judge")
-    p.add_argument("--html", type=Path, default=Path("skill-ab-report.html"))
+    p.add_argument("--html", type=Path, default=Path("skills-test-report.html"))
     p.add_argument("--worktree-isolation", action="store_true",
                    help="install skills into the worktree instead of force-injecting "
                         "(only valid if the skills are NOT globally installed)")
@@ -5941,10 +5941,10 @@ def _load_cfg_tasks(args) -> tuple[ExperimentConfig, list[Task]]:
 
 def main(argv: list[str] | None = None) -> int:
     raw = sys.argv[1:] if argv is None else argv
-    if raw and raw[0] == "quick":          # `skill-ab quick A B TARGET` == `skill-test`
+    if raw and raw[0] == "quick":          # `skills-test quick A B TARGET` head-to-head
         return quick_main(raw[1:])
     import argparse
-    p = argparse.ArgumentParser(prog="skill-ab",
+    p = argparse.ArgumentParser(prog="skills-test",
                                 description="A/B test whether a Claude Code skill helps.")
     p.add_argument("--version", action="version", version=__version__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -5970,7 +5970,7 @@ def main(argv: list[str] | None = None) -> int:
     prep = sub.add_parser("report", help="render an HTML report from a results.jsonl (no spend)")
     prep.add_argument("-c", "--config", type=Path, default=Path("skillab.toml"))
     prep.add_argument("--jsonl", type=Path, default=None)
-    prep.add_argument("-o", "--out", type=Path, default=Path("skill-ab-report.html"))
+    prep.add_argument("-o", "--out", type=Path, default=Path("skills-test-report.html"))
 
     pp = sub.add_parser("plan", help="dry-run: project cost/time + MDE before spending")
     _cfg_args(pp)
@@ -5986,12 +5986,12 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--html", type=Path, default=None)
 
     pd = sub.add_parser("demo", help="render a bundled example report (offline, free)")
-    pd.add_argument("-o", "--out", type=Path, default=Path("skill-ab-demo"))
+    pd.add_argument("-o", "--out", type=Path, default=Path("skills-test-demo"))
 
     ps = sub.add_parser("serve", help="launch the local web app (uses your Claude "
                                       "subscription via `claude -p`; no API key)")
     ps.add_argument("--port", type=int, default=7878)
-    ps.add_argument("--runs-dir", type=Path, default=Path.home() / ".skill-ab" / "runs")
+    ps.add_argument("--runs-dir", type=Path, default=Path.home() / ".skills-test" / "runs")
     ps.add_argument("--no-open", action="store_true", help="don't open a browser")
 
     args = p.parse_args(argv)

@@ -1,4 +1,4 @@
-"""skill_ab_app.py — the `skill-ab serve` frontend (one self-contained SPA).
+"""skill_ab_app.py — the `skills-test serve` frontend (one self-contained SPA).
 
 This module owns *only* the browser-facing UI. `app_shell_html(token)` returns a
 single HTML document (no external assets, no framework, no build step) that talks

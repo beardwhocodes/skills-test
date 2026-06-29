@@ -46,7 +46,7 @@ fully before starting, honor its STOP conditions, and update your row when done.
 | 018 | Small hardening bundle (task.id sanitize, strip-chart, docs, dead code) | P3 | S | — | DONE |
 | 019 | SPIKE: OFF-vs-OFF noise-floor run mode | P3 | M | — | DONE |
 | 020 | SPIKE: static results gallery on the `summary.json` substrate | P3 | L | — | DONE |
-| 021 | `skill-ab serve` — local web app (subscription, live streaming, secured) | P1 | L | — | DONE |
+| 021 | `skills-test serve` — local web app (subscription, live streaming, secured) | P1 | L | — | DONE |
 | 022 | SPIKE→prototype: pluggable CLI runner (claude vs codex vs any CLI) | P2 | M | 021, per-arm models | DONE |
 | 023 | Optional total-spend ceiling in the serve UI (stop starting runs past ~$N) | P2 | M | 021 | DONE |
 | 024 | UX upgrade: interactive diff viewer (centerpiece) + treatment panel + guided flows + visual polish + minimap | P1 | L | 021 | DONE |
@@ -84,7 +84,7 @@ new code; their Current-state excerpts are quoted from the post-rewrite file.
 
 - **Split the 3,715-line single module into packages:** rejected — `pyproject.toml`
   pins `py-modules=["skill_ab_harness"]` and embeds the demo fixture in-code so
-  `uvx skill-ab` ships one file; splitting regresses that deliberate zero-install
+  `uvx skills-test` ships one file; splitting regresses that deliberate zero-install
   packaging. The one real sub-problem (un-validated embedded JS) is addressed by
   009 without breaking single-file packaging.
 - **Add numpy/scipy "for rigor":** rejected — the cluster bootstrap/permutation are

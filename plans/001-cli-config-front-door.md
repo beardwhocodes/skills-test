@@ -25,9 +25,9 @@ Today the only way to run the harness is to hand-edit Python-literal config at t
 bottom of a 1300-line file (`/path/to/your/repo` placeholders). That is the single
 biggest adoption blocker: there is no `--help`, no config file, no install entry
 point. This plan adds an `argparse` CLI (`init` / `run`) backed by a stdlib
-`tomllib` config, plus a `[project.scripts]` entry so `skill-ab` is a command. The
+`tomllib` config, plus a `[project.scripts]` entry so `skills-test` is a command. The
 existing Python-literal path keeps working. After this, the try-now story is
-`uvx skill-ab-harness init && skill-ab run`.
+`uvx skills-test init && skills-test run`.
 
 ## Current state
 
@@ -108,7 +108,7 @@ def load_config(config_path: Path) -> tuple[ExperimentConfig, list[Task]]:
 ### Step 2: Add `init` to scaffold config from the cwd
 
 ```python
-_INIT_TEMPLATE = '''# skill-ab experiment — edit then run `skill-ab run -c {name}`
+_INIT_TEMPLATE = '''# skills-test experiment — edit then run `skills-test run -c {name}`
 [experiment]
 repo_path  = "{repo}"      # a git repo (worktrees fork from base_ref)
 base_ref   = "main"
@@ -137,7 +137,7 @@ def cmd_init(out_path: Path) -> None:
     if out_path.exists():
         raise SystemExit(f"{out_path} already exists; refusing to overwrite")
     out_path.write_text(text)
-    print(f"wrote {out_path} — edit it, then: skill-ab run -c {out_path}")
+    print(f"wrote {out_path} — edit it, then: skills-test run -c {out_path}")
 ```
 
 **Verify**: in a scratch dir, `python3 .../skill_ab_harness.py init -c /tmp/x.toml`
@@ -161,7 +161,7 @@ def _build_example():
 
 def main(argv: list[str] | None = None) -> int:
     import argparse
-    p = argparse.ArgumentParser(prog="skill-ab", description=__doc__.splitlines()[1] if __doc__ else "")
+    p = argparse.ArgumentParser(prog="skills-test", description=__doc__.splitlines()[1] if __doc__ else "")
     sub = p.add_subparsers(dest="cmd", required=True)
     pi = sub.add_parser("init", help="scaffold a skillab.toml in the current repo")
     pi.add_argument("-c", "--config", type=Path, default=Path("skillab.toml"))

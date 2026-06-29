@@ -26,7 +26,7 @@
 The HTML report is a single self-contained file that gets shared (committed to
 CI artifacts, emailed, pasted into chat). Its interactive SVG charts show
 tooltips whose text includes **arm labels** — and arm labels are derived from
-attacker-influenceable strings: `skill_name`, the `skill-test A B` CLI
+attacker-influenceable strings: `skill_name`, the `skills-test quick A B` CLI
 arguments, and a `--from-github` config. The tooltip code escapes that text
 once, but then stores it in a `data-tip="..."` attribute and later does
 `tip.innerHTML = node.getAttribute("data-tip")`. `getAttribute` returns the

@@ -98,23 +98,23 @@ def render_badge_svg(metric: str, verdict: dict) -> str:
     w = lw + rw
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="20" '
-        f'role="img" aria-label="skill A/B: {right}">'
+        f'role="img" aria-label="skills-test: {right}">'
         f'<rect width="{lw}" height="20" fill="#555"/>'
         f'<rect x="{lw}" width="{rw}" height="20" fill="{color}"/>'
         f'<g fill="#fff" font-family="Verdana,Geneva,sans-serif" font-size="11">'
-        f'<text x="6" y="14">skill A/B</text>'
+        f'<text x="6" y="14">skills-test</text>'
         f'<text x="{lw+6}" y="14">{right}</text></g></svg>')
 
 def badge_endpoint_json(metric: str, verdict: dict) -> dict:
     """shields.io 'endpoint' schema (host the JSON, point shields at it)."""
     pct = f"{verdict['point']*100:+.0f}%"
     msg = f"{verdict['label']} {pct}" if verdict["label"] != "inconclusive" else "inconclusive"
-    return {"schemaVersion": 1, "label": f"skill A/B: {metric}",
+    return {"schemaVersion": 1, "label": f"skills-test: {metric}",
             "message": msg, "color": verdict["color"]}
 
 def badge_markdown(metric: str, verdict: dict, svg_rel_path: str) -> str:
     ci = f"[{verdict['ci_low']*100:+.0f}%, {verdict['ci_high']*100:+.0f}%]"
-    return (f"![skill A/B {metric}]({svg_rel_path}) "
+    return (f"![skills-test {metric}]({svg_rel_path}) "
             f"<!-- {verdict['label']} {metric} {verdict['point']*100:+.0f}% 95% CI {ci}, "
             f"n_tasks={verdict['n_tasks']} -->")
 ```

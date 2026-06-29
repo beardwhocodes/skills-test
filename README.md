@@ -3,9 +3,10 @@
 Measure whether a Claude Code skill actually improves agentic coding outcomes,
 with statistical honesty instead of one-diff vibes.
 
-> The CLI commands and the pip package keep their existing names (`skill-ab`,
-> `skill-test`, `skill-ab-harness`) — renaming those would break installs and entry
-> points. "skills-test" is the product/display name used across the app and reports.
+> Installed, the command and pip package are both **`skills-test`** (the head-to-head
+> one-liner is `skills-test quick A B TARGET`). Before install you can run the engine
+> file directly as `python3 skill_ab_harness.py <cmd>` — the Python module keeps its
+> `skill_ab_harness` import name (invisible to CLI users; not worth the import churn).
 
 ## Requires
 - Python 3.11+
@@ -14,7 +15,7 @@ with statistical honesty instead of one-diff vibes.
 ## Try it in one command (no setup, no cost)
 
 ```
-python3 skill_ab_harness.py demo         # or: skill-ab demo  (after pip/uvx install)
+python3 skill_ab_harness.py demo         # or: skills-test demo  (after pip/uvx install)
 ```
 
 Renders a self-contained `report.html` from a bundled example —
@@ -25,10 +26,10 @@ distribution), a discounted blind-judge panel, and a collapsible audit trail wit
 the side-by-side on/off diff drill-down that explains *why* the skill helped. Light
 and dark themes via `prefers-color-scheme`.
 
-## Local app (`skill-ab serve`)
+## Local app (`skills-test serve`)
 
 ```
-python3 skill_ab_harness.py serve        # or: skill-ab serve   -> opens http://127.0.0.1:7878
+python3 skill_ab_harness.py serve        # or: skills-test serve   -> opens http://127.0.0.1:7878
 ```
 
 A self-contained local web app (stdlib only — no framework, no CDN, no build) that
@@ -56,10 +57,10 @@ and `--no-open` are available.
 ## Run it on your own skill
 
 ```
-skill-ab init                 # writes skillab.toml, pre-filled from your repo + skills
+skills-test init               # writes skillab.toml, pre-filled from your repo + skills
 # edit skillab.toml: set repo_path, skill_src, a real setup_cmd (e.g. npm ci), test_cmd
-skill-ab plan -c skillab.toml --cost-per-run 0.30   # project $ and time BEFORE spending
-skill-ab run  -c skillab.toml --html report.html    # the experiment + an HTML report
+skills-test plan -c skillab.toml --cost-per-run 0.30   # project $ and time BEFORE spending
+skills-test run  -c skillab.toml --html report.html    # the experiment + an HTML report
 ```
 
 It runs each task with the skill on and off (k times each, in isolated git
@@ -80,7 +81,7 @@ and a portable `summary.json` (see `results.schema.json`). See `METHODOLOGY.md`.
 | `plan` | dry-run cost/time projection + minimum-detectable-effect (no spend) |
 | `run` | run the experiment; `--resume` reuses prior runs; `--from-github <url>` clones a skill repo |
 | `report` | re-render an HTML report from a `results.jsonl` (no spend) |
-| `ci` | run + gate with a policy exit code (see `.github/workflows/skill-ab.yml`) |
+| `ci` | run + gate with a policy exit code (see `.github/workflows/skills-test.yml`) |
 
 This is a **comparison benchmark, not a pass/fail build**: the report calls a
 difference **significant** only when the 95% CI excludes 0 *and* the run is
@@ -89,14 +90,14 @@ winning arm and effect size are named in the headline, never as a green/red verd
 (The `ci` command is the one legitimate pass/fail gate — it exits non-zero on a
 significant regression of the primary metric.)
 
-## One-liner: `skill-test A B TARGET`
+## One-liner: `skills-test quick A B TARGET`
 
 The fast path — no config file. Name two skills (the second can be `none` for a
 skill-vs-control test) and point at a PR, branch, or directory:
 
 ```
-skill-test resolve-pr-parallel resolve-pr-comments https://github.com/owner/repo/pull/7044
-skill-test my-skill none .            --prompt "Add input validation to the API"
+skills-test quick resolve-pr-parallel resolve-pr-comments https://github.com/owner/repo/pull/7044
+skills-test quick my-skill none .       --prompt "Add input validation to the API"
 ```
 
 It resolves each skill by name (project → `~/.claude/skills` → installed plugins),
@@ -109,7 +110,7 @@ mode runs each arm with `--disable-slash-commands` (suppressing *all* ambient sk
 and force-injects only that arm's `SKILL.md` guidance (`--append-system-prompt-file`),
 so the comparison is clean regardless of what's installed globally. (The full `run`
 command instead installs the skill into the worktree and lets it auto-activate — use
-`--worktree-isolation` on `skill-test` to opt into that, only if the skills aren't
+`--worktree-isolation` on `skills-test quick` to opt into that, only if the skills aren't
 globally installed.)
 
 ## Compare two skills head-to-head (config file)

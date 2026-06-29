@@ -23,7 +23,7 @@
 
 ## Why this matters
 
-The repo ships a single GitHub Actions workflow (`.github/workflows/skill-ab.yml`)
+The repo ships a single GitHub Actions workflow (`.github/workflows/skills-test.yml`)
 whose only job runs the **paid** `python skill_ab_harness.py ci` command (it spends
 real money calling `claude -p` and needs `ANTHROPIC_API_KEY`). It is gated behind a
 label / `workflow_dispatch`, so nothing runs on an ordinary push or PR. That means
@@ -42,7 +42,7 @@ Files involved:
   `E702` (multiple-statements-on-one-line / semicolon) errors.
 - `test_skill_ab_harness.py` — the stdlib test runner (53 tests). Has **9** ruff
   `E702` errors.
-- `.github/workflows/skill-ab.yml` — the existing PAID A/B gate. Leave it untouched.
+- `.github/workflows/skills-test.yml` — the existing PAID A/B gate. Leave it untouched.
 - `pyproject.toml` — already configures `[tool.ruff]` with `line-length = 100`, so a
   plain `ruff check <files>` picks up the right line length automatically. No new
   config needed.
@@ -116,18 +116,18 @@ Inside `main()`'s command dispatch, `skill_ab_harness.py:3660-3663`:
         r = _rr(arm, arm is Arm.SKILL_ON, scores={"tests_pass": v}); r.task_id = "only"
 ```
 
-### The existing PAID workflow (DO NOT MODIFY) — `.github/workflows/skill-ab.yml`
+### The existing PAID workflow (DO NOT MODIFY) — `.github/workflows/skills-test.yml`
 
 For reference, so you can see what NOT to duplicate. It runs only on
-`workflow_dispatch` and a `skill-ab` PR label, installs the Claude CLI, and runs the
+`workflow_dispatch` and a `skills-test` PR label, installs the Claude CLI, and runs the
 paid `ci` command with `ANTHROPIC_API_KEY`:
 
 ```yaml
-name: skill-ab
+name: skills-test
 on:
   workflow_dispatch:
   pull_request:
-    types: [labeled]        # add the "skill-ab" label to trigger
+    types: [labeled]        # add the "skills-test" label to trigger
 ```
 
 The new workflow you add is a **separate file** and must NOT touch this one.
@@ -161,7 +161,7 @@ the `pyproject.toml` `line-length = 100` is honored by all of them.
 - `.github/workflows/lint-test.yml` — **create** this new workflow.
 
 **Out of scope** (do NOT touch):
-- `.github/workflows/skill-ab.yml` — the paid A/B gate; leave it exactly as-is.
+- `.github/workflows/skills-test.yml` — the paid A/B gate; leave it exactly as-is.
 - `plans/README.md` — the reviewer maintains the index; do not edit it.
 - `plans/001-*.md` … `plans/007-*.md` — other plans; do not touch.
 - Any other line of `skill_ab_harness.py` / `test_skill_ab_harness.py` beyond the
@@ -314,7 +314,7 @@ Create the file `.github/workflows/lint-test.yml` with exactly this content:
 # Free, fast lint + test gate. Runs on every push and pull_request.
 # No secrets, no Claude CLI, no network beyond installing ruff — so it costs
 # nothing and gives immediate feedback. The PAID A/B regression gate lives in
-# skill-ab.yml and stays opt-in (label / workflow_dispatch); this complements it.
+# skills-test.yml and stays opt-in (label / workflow_dispatch); this complements it.
 name: lint-test
 on:
   push:
@@ -384,7 +384,7 @@ Machine-checkable. ALL must hold:
 - [ ] `.github/workflows/lint-test.yml` exists, references no secrets and no
       `ANTHROPIC_API_KEY`, runs both the `ruff check` and `python
       test_skill_ab_harness.py` steps, and triggers on `push` and `pull_request`.
-- [ ] `.github/workflows/skill-ab.yml` is byte-for-byte unchanged.
+- [ ] `.github/workflows/skills-test.yml` is byte-for-byte unchanged.
 - [ ] No files outside the in-scope list were modified.
 - [ ] `plans/README.md` was NOT edited (the reviewer maintains it).
 
@@ -421,7 +421,7 @@ For whoever owns this next:
   STDLIB-ONLY rule forbids adding pytest as a dependency.
 - A reviewer should confirm the new workflow carries no secrets and adds no paid
   `claude` call — its whole value is being free and fast. The paid gate stays in
-  `skill-ab.yml`, opt-in behind a label / `workflow_dispatch`.
+  `skills-test.yml`, opt-in behind a label / `workflow_dispatch`.
 - Deferred out of this plan: enabling ruff auto-fix in CI (`ruff check --fix`) or
   adding `ruff format`. Intentionally omitted — this plan only establishes the gate
   and clears the existing baseline; format/auto-fix policy is a separate decision.

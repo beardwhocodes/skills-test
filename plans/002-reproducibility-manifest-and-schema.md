@@ -33,7 +33,7 @@ manifest kills the "which X?" dismissal; the JSON is the substrate the badge
 - `build_report(results, pf, cfg, scorers=None, seed=0)` (`skill_ab_harness.py:928`)
   — returns a Markdown string. Its header today (around lines 950–956) prints only:
   ```python
-  f"# Skill A/B report — `{cfg.skill_name}`",
+  f"# skills-test report — `{cfg.skill_name}`",
   f"model: {cfg.model} | k: {cfg.k}/arm/task | bootstrap: {cfg.bootstrap_iters:,} ...",
   ```
 - `class DiffEstimate` (`skill_ab_harness.py:765`, `@dataclass`) — fields:

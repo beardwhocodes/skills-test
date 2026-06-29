@@ -1,4 +1,4 @@
-# Plan 021: `skill-ab serve` — a polished, local-first web app over the harness
+# Plan 021: `skills-test serve` — a polished, local-first web app over the harness
 
 > **Status / nature**: This is a BUILD plan for a full feature (not a spike). It is
 > also the **coordination spec** for parallel builders: it fixes the file
@@ -25,7 +25,7 @@ self-contained interactive `report.html`, a portable `summary.json`, a badge, an
 a gallery prototype. What it lacks is a **UX shell**: a way to configure a run,
 **watch it happen live**, see the cost/usage *before* spending, browse past runs,
 and open results — without hand-editing TOML or reading CLI output. This plan adds
-`skill-ab serve`: a local web app at `http://127.0.0.1:<port>` that wraps the
+`skills-test serve`: a local web app at `http://127.0.0.1:<port>` that wraps the
 engine. It is **local-first by design** (the project already rejected hosted
 SaaS/accounts) and **subscription-billed** (it drives `claude -p` under the user's
 Claude Code login — NOT the Agent SDK, which requires a metered API key).
@@ -41,7 +41,7 @@ Claude Code login — NOT the Agent SDK, which requires a metered API key).
    frontend framework. Backend = `http.server` (`ThreadingHTTPServer`) + `asyncio`
    for the engine + `threading`/`queue` for SSE fan-out. Frontend = vanilla ES5/ES6
    in `<script>` strings + inline CSS reusing the report's `_HTML_STYLE` design
-   system. This preserves `uvx skill-ab serve` zero-install. Python ≥ 3.11.
+   system. This preserves `uvx skills-test serve` zero-install. Python ≥ 3.11.
 3. **Security (this server spawns paid, file-editing agents — treat it as such).**
    - Bind to **127.0.0.1 only** (never 0.0.0.0).
    - Generate a random per-process **session token**; embed it in the served app
@@ -88,7 +88,7 @@ Four files. Owners in brackets — build in parallel against the contracts below
   `test_skill_ab_harness.py`.
 
 `pyproject.toml`: add `skill_ab_server` and `skill_ab_app` to `py-modules`; keep
-`skill-ab`/`skill-test` scripts. Bump `__version__` + `pyproject` to `0.3.0`.
+`skills-test`/`skills-test quick` scripts. Bump `__version__` + `pyproject` to `0.3.0`.
 
 ## HTTP / SSE API contract (v1 — FROZEN; build to this)
 
@@ -151,7 +151,7 @@ In `skill_ab_harness.py`, all additive and backward-compatible:
    `_gallery_verdict_from_summary` for the verdict. Tolerate malformed/partial run
    dirs (skip, never raise).
 5. `main()`: add `sub.add_parser("serve", ...)` with `--port` (default 7878),
-   `--runs-dir` (default `~/.skill-ab/runs`), `--no-open`. Dispatch:
+   `--runs-dir` (default `~/.skills-test/runs`), `--no-open`. Dispatch:
    `from skill_ab_server import serve; serve(...)`. Import lazily inside the branch
    so the engine has no hard dependency on the server module.
 
@@ -228,7 +228,7 @@ stats logic is untouched.
    `skill_ab_server.py`, `skill_ab_app.py`, and `test_skill_ab_server.py` against
    the frozen API + Event contract. The server imports `app_shell_html` from
    `skill_ab_app`; both import only from `skill_ab_harness`.
-3. **[lead] Integrate & verify** — run `skill-ab serve`, hit `/api/health`, drive a
+3. **[lead] Integrate & verify** — run `skills-test serve`, hit `/api/health`, drive a
    **demo run**, confirm the SSE event sequence and the written run dir; open the
    app in a browser, screenshot every view, iterate on design until polished.
 4. **[parallel] Review** — a senior backend reviewer (security: token/Host/Origin,

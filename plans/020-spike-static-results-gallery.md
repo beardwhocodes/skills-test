@@ -239,7 +239,7 @@ Proposed signature, consistent with the existing CLI (`init`/`report`/`badge`/
 `demo` all take `-o`/`--out` and read local files):
 
 ```
-skill-ab gallery [SUMMARY ...] [--manifest manifest.json] [-o OUTDIR]
+skills-test gallery [SUMMARY ...] [--manifest manifest.json] [-o OUTDIR]
 ```
 
 - Positional `SUMMARY ...`: zero or more paths to `summary.json` files.
@@ -415,14 +415,14 @@ def build_gallery_html(entries: list[dict]) -> str:
             continue
         cards.append(_gallery_card(s, e.get("report_href")))
     disclaimer = ("<p class='note'>Every entry below is <b>self-reported</b> and "
-                  "<b>unverified</b> — reproduce via <code>skill-ab run "
+                  "<b>unverified</b> — reproduce via <code>skills-test run "
                   "--from-github</code>.</p>")
     return "".join([
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>",
         "<meta name='viewport' content='width=device-width, initial-scale=1'>",
-        "<title>skill A/B — gallery</title>",
+        "<title>skills-test — gallery</title>",
         f"<style>{_HTML_STYLE}</style></head><body><div class='wrap'>",
-        "<h1>skill A/B gallery</h1>", disclaimer,
+        "<h1>skills-test gallery</h1>", disclaimer,
         "".join(cards), "</div></body></html>",
     ])
 ```

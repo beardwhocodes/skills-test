@@ -1,6 +1,6 @@
 # Methodology
 
-How `skill-ab` turns "I think my skill helped" into a number a skeptic can check.
+How `skills-test` turns "I think my skill helped" into a number a skeptic can check.
 This document exists so a result can be **cited**, not just screenshotted.
 
 ## The experiment
@@ -51,7 +51,7 @@ deliberate pass/fail gate: it exits non-zero on a significant regression.)
 
 ## Is my effect real, or am I underpowered?
 
-`skill-ab plan --baseline B --noise N` reports the **minimum detectable effect**
+`skills-test plan --baseline B --noise N` reports the **minimum detectable effect**
 (MDE) at your current `k` and task count, by simulating the real cluster estimator
 over draws with your noise level. If your observed delta is below the MDE, a null
 result is *underpowered*, not evidence of no effect — raise `k` or add tasks. A good
@@ -68,7 +68,7 @@ real `cluster_bootstrap_ci` exclude 0 at roughly `alpha`, not far above it (pinn
 `test_noise_floor_false_positive_rate_is_calibrated`).
 
 - **Config / CLI surface (recommended).** A `noise_floor: bool` on
-  `ExperimentConfig` (set by a `skill-ab run --null` flag) that makes
+  `ExperimentConfig` (set by a `skills-test run --null` flag) that makes
   `experiment_arms` → `[Arm.SKILL_OFF, <new Arm.SKILL_OFF_B>]`, both `arm_skill` →
   `(None, None)`, **labelled `control_a` / `control_b`**. It reuses the existing
   estimator → summary → badge → report stack unchanged, because every layer already

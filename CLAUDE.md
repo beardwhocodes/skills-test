@@ -1,4 +1,4 @@
-# skill-ab-harness — project context for Claude Code
+# skills-test — project context for Claude Code
 
 ## What this is
 A coding-specific A/B harness that measures the effect of a single Claude Code
@@ -24,8 +24,8 @@ report with CIs, not point estimates.
   correlated runs from one task don't inflate significance. Needs ≥2 tasks for
   real across-task variance.
 
-## Quick CLI (`skill-test` / `skill-ab quick`)
-`skill-test <skillA> <skillB|none> <PR-url|branch|.>` (entry `quick_main`) builds the
+## Quick CLI (`skills-test quick`)
+`skills-test quick <skillA> <skillB|none> <PR-url|branch|.>` (entry `quick_main`) builds the
 config + one Task for you: `resolve_skill` finds a skill by name (project →
 ~/.claude/skills → plugin cache/marketplaces, `find -L`/case-insensitive — some ship
 `Skill.md`, some are symlinks), `resolve_target` fetches a PR head into a private ref
@@ -33,7 +33,7 @@ config + one Task for you: `resolve_skill` finds a skill by name (project →
 
 **Isolation modes** (`ExperimentConfig.isolation`): `"worktree"` (default for `run`) =
 install SKILL.md into the worktree + auto-activate; `"inject"` (default for
-`skill-test`) = `--disable-slash-commands` + `--append-system-prompt-file <SKILL.md
+`skills-test quick`) = `--disable-slash-commands` + `--append-system-prompt-file <SKILL.md
 body>`. Inject mode exists because the skills under test are usually GLOBALLY-installed
 plugins that would otherwise leak into every arm. Verified against live CLI v2.1.191.
 In inject mode: strip frontmatter + `` !`cmd` `` blocks before injecting
@@ -114,7 +114,7 @@ The harness runs N arms, each defined by "install this skill (or nothing)".
 - [x] Per-run logs/artifacts retained on failure — failed/invalid runs dump
       events + diff + stderr to `results_dir/artifacts/<label>/`
       (`keep_failed_worktrees` also leaves the tree).
-- [x] `skill-ab serve` local web app (plan 021) — subscription-backed `claude -p`,
+- [x] `skills-test serve` local web app (plan 021) — subscription-backed `claude -p`,
       live SSE streaming, estimate gate, skill picker, per-arm model comparison;
       loopback-only + per-process token. See README "Local app".
 - [x] Pluggable CLI runner (plan 022) — compare `claude` vs `codex` vs any CLI via
@@ -141,7 +141,7 @@ the local-app server (token auth, Host/Origin, runner_* refusal, demo run, estim
 
 ## Run
 Now a real CLI (stdlib only; needs `git` + `claude` on PATH). `python
-skill_ab_harness.py <cmd>` or `skill-ab <cmd>` after install:
+skill_ab_harness.py <cmd>` or `skills-test <cmd>` after install:
 - `demo` — offline, free example report (zero claude calls)
 - `init` / `run` / `report` / `plan` / `ci` (see README + `plans/`)
 

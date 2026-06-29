@@ -170,7 +170,7 @@ CLI:
 prep = sub.add_parser("report", help="render an HTML report from results.jsonl")
 prep.add_argument("-c", "--config", type=Path, default=Path("skillab.toml"))
 prep.add_argument("--jsonl", type=Path, default=None, help="defaults to <results_dir>/results.jsonl")
-prep.add_argument("-o", "--out", type=Path, default=Path("skill-ab-report.html"))
+prep.add_argument("-o", "--out", type=Path, default=Path("skills-test-report.html"))
 ```
 handler: load cfg (plan 001 `load_config`), `results = load_results(jsonl or cfg.results_dir/'results.jsonl')`,
 build manifest (plan 002), write `build_html_report(...)` to `--out`, print the path.
@@ -178,7 +178,7 @@ This spends **zero** `claude`/`git` — pure render. (Judge panel only if a
 `comparisons.json` exists; otherwise omit.)
 
 **Verify**: with a `results.jsonl`, `python3 skill_ab_harness.py report` writes an
-`.html`; `grep -c "<table" skill-ab-report.html` ≥ 1 and `grep -c "class=\"diff\"" ...` ≥ 1.
+`.html`; `grep -c "<table" skills-test-report.html` ≥ 1 and `grep -c "class=\"diff\"" ...` ≥ 1.
 
 ### Step 5: Tests
 

@@ -2,7 +2,7 @@
 
 > Authored from a 9-agent design workflow (4 UX audits → judged 3-way diff-viewer panel → synthesis), 2026-06-28, against commit `d054850`. Winner: **GitHub Split** diff viewer + grafts. Execute the roadmap (§5) in batches; the diff viewer + treatment panel are the user's explicit priorities. All work stays stdlib-only, one offline self-contained HTML, escaped server-side, both themes.
 
-# skill-ab UX Upgrade — Build Spec + Roadmap
+# skills-test UX Upgrade — Build Spec + Roadmap
 
 Single consolidated spec. The diff viewer is the winning **GitHub Split** design with the judge-approved grafts folded in (contrast band, divergence map, beat captions, diff-of-diffs mode, canvas minimap, mandatory reduced-motion gate). All work stays stdlib-only, one self-contained offline HTML file, escaped-server-side, both themes, no telemetry. Source anchors verified against the live files (`skill_ab_harness.py` 213 KB, `skill_ab_app.py`, `skill_ab_server.py`).
 

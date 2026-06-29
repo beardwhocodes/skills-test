@@ -178,7 +178,7 @@ The bar chart already guards correctly — `barChart`, `skill_ab_harness.py:2605
 
 `README.md:13`:
 ```
-python skill_ab_harness.py demo          # or: skill-ab demo  (after pip/uvx install)
+python skill_ab_harness.py demo          # or: skills-test demo  (after pip/uvx install)
 ```
 `README.md:110`:
 ```
@@ -359,7 +359,7 @@ change the `arms` filter at line 2719-2721.
 Replace bare `python ` invocations with `python3 ` in the four locations under
 "Step 3 facts". Concretely:
 - `README.md:13`: `python skill_ab_harness.py demo` → `python3 skill_ab_harness.py demo`
-  (preserve the trailing `# or: skill-ab demo  (after pip/uvx install)` comment).
+  (preserve the trailing `# or: skills-test demo  (after pip/uvx install)` comment).
 - `README.md:110`: `python test_skill_ab_harness.py` → `python3 test_skill_ab_harness.py`.
 - `CLAUDE.md:99`: `python test_skill_ab_harness.py` → `python3 test_skill_ab_harness.py`.
 - `test_skill_ab_harness.py:6`: `python -m pytest -q` or `python
