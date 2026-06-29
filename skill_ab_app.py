@@ -389,7 +389,7 @@ _SHELL_HTML = """
         </svg>
       </span>
       <span>
-        <span class="bn">skill-ab</span><br>
+        <span class="bn">skills-test</span><br>
         <span class="bt">local app</span>
       </span>
     </div>
@@ -1495,7 +1495,7 @@ _APP_JS = r"""
       var nTasks = pe.n_tasks != null ? pe.n_tasks : "?";
       var k = (sm.manifest && sm.manifest.k != null) ? sm.manifest.k : "?";
       var contam = (sm.validity && sm.validity.off_contaminated) || 0;
-      var lines = ["## skill-ab: " + a + " vs " + b
+      var lines = ["## skills-test: " + a + " vs " + b
         + "  (" + nTasks + " tasks, k=" + k + ", ITT)"];
       var rest = Object.keys(itt).filter(function(m){ return m !== prim; });
       [prim].concat(rest).forEach(function(m){
@@ -1565,7 +1565,7 @@ _APP_JS = r"""
     view.appendChild(E("div", {class:"card card-pad", style:"max-width:720px"}, [
       E("p", {class:"hint", style:"max-width:62ch; line-height:1.62",
         text:"A static index of self-reported, unverified run summaries — the same "
-          + "shareable page skill-ab generates. It opens as its own full page."}),
+          + "shareable page skills-test generates. It opens as its own full page."}),
       E("div", {class:"row", style:"margin-top:15px"}, [
         E("a", {class:"btn btn-primary", href:withTok("/api/gallery"),
           target:"_blank", rel:"noopener"}, "Open the gallery →")
@@ -1689,7 +1689,7 @@ def app_shell_html(token: str) -> str:
     return "".join([
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>",
         "<meta name='viewport' content='width=device-width, initial-scale=1'>",
-        "<title>skill-ab</title>",
+        "<title>skills-test</title>",
         "<style>", h._HTML_STYLE, _APP_CSS, "</style></head>",
         "<body class='app-body'>",
         _SHELL_HTML,

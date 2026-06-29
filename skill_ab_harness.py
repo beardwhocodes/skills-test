@@ -1598,7 +1598,7 @@ def build_report(results: list[RunResult], pf: Preflight, cfg: ExperimentConfig,
     title_skill = cfg.skill_name if len(pairs) == 1 else f"{cfg.skill_name} vs {cfg.skill_b_name}"
 
     L = [
-        f"# Skill A/B report — `{title_skill}`",
+        f"# skills-test report — `{title_skill}`",
         f"model: {cfg.model} | k: {cfg.k}/arm/task | bootstrap: {cfg.bootstrap_iters:,} "
         f"| permutation: {cfg.permutation_iters:,} | arms: {len(experiment_arms(cfg))} "
         f"| total runs: {len(results)}",
@@ -2345,9 +2345,9 @@ def build_gallery_html(entries: list[dict]) -> str:
     return "".join([
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>",
         "<meta name='viewport' content='width=device-width, initial-scale=1'>",
-        "<title>skill A/B — gallery</title>",
+        "<title>skills-test — gallery</title>",
         f"<style>{_HTML_STYLE}</style></head><body><div class='wrap'>",
-        "<h1>skill A/B gallery</h1>", disclaimer,
+        "<h1>skills-test gallery</h1>", disclaimer,
         "".join(cards), "</div></body></html>",
     ])
 
@@ -3495,7 +3495,7 @@ _HTML_SCRIPT = r"""(function(){
     return ""
       + "<div class='topbar'><div>"
       +   "<div class='brand'><div class='glyph'>" + IC.spark + "</div><div>"
-      +     "<div class='eyebrow'>Skill A/B " + MIDDOT + " coding outcomes</div>"
+      +     "<div class='eyebrow'>skills-test " + MIDDOT + " coding outcomes</div>"
       +     "<h1 class='title'>" + titleHtml + "</h1></div></div>"
       +   "<div class='subtitle'>Effect of installing a skill, measured against a "
       +     (controlArm ? "no-skill <b>" + esc(controlArm) + "</b> baseline"
@@ -5415,7 +5415,7 @@ def build_html_report(results: list[RunResult], pf: Preflight, cfg: ExperimentCo
         server_detail += _judge_reasons_html(comparisons)
 
     footer = (
-        f"skill A/B harness {html.escape(str(manifest['harness_version']))} {_MIDDOT} "
+        f"skills-test {html.escape(str(manifest['harness_version']))} {_MIDDOT} "
         f"repo {html.escape(manifest['repo_path'])} @ {html.escape(manifest['base_ref'])} "
         f"({(manifest.get('base_ref_sha') or '?')[:12]}) {_MIDDOT} "
         f"SKILL.md {(manifest.get('skill_md_sha256') or '?')[:16]} {_MIDDOT} "
@@ -5425,7 +5425,7 @@ def build_html_report(results: list[RunResult], pf: Preflight, cfg: ExperimentCo
     parts = [
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>",
         "<meta name='viewport' content='width=device-width, initial-scale=1'>",
-        f"<title>skill A/B — {html.escape(title)}</title>",
+        f"<title>skills-test — {html.escape(title)}</title>",
         f"<style>{_HTML_STYLE}</style></head><body>",
         "<div class='wrap'><div id='app'></div>",
         server_detail,
@@ -5577,7 +5577,7 @@ def ci_exit_code(summary: dict, cfg: ExperimentConfig, policy: str) -> tuple[int
 # Command-line interface
 # ---------------------------------------------------------------------------
 
-_INIT_TEMPLATE = '''# skill-ab experiment — edit then run `skill-ab run -c {name}`
+_INIT_TEMPLATE = '''# skills-test experiment — edit then run `skill-ab run -c {name}`
 [experiment]
 repo_path  = "{repo}"      # a git repo (worktrees fork from base_ref)
 base_ref   = "main"

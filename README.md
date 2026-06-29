@@ -1,7 +1,11 @@
-# skill-ab-harness
+# skills-test
 
 Measure whether a Claude Code skill actually improves agentic coding outcomes,
 with statistical honesty instead of one-diff vibes.
+
+> The CLI commands and the pip package keep their existing names (`skill-ab`,
+> `skill-test`, `skill-ab-harness`) — renaming those would break installs and entry
+> points. "skills-test" is the product/display name used across the app and reports.
 
 ## Requires
 - Python 3.11+

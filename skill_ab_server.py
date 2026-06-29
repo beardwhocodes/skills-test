@@ -554,8 +554,8 @@ def _fallback_shell(token: str) -> str:
     safe = json.dumps(token)
     return (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
-        "<title>skill-ab</title></head><body>"
-        "<h1>skill-ab serve</h1>"
+        "<title>skills-test</title></head><body>"
+        "<h1>skills-test</h1>"
         "<p>Frontend module unavailable; the API is up.</p>"
         f"<script>window.SKILL_AB_TOKEN={safe};</script>"
         "</body></html>")
@@ -903,7 +903,7 @@ def serve(host: str = "127.0.0.1", port: int = 7878,
     srv = make_server(runs_dir, token, host, port)
     real_port = srv.server_address[1]
     url = f"http://127.0.0.1:{real_port}/?token={token}"
-    print(f"skill-ab is live at {url}")
+    print(f"skills-test is live at {url}")
     if open_browser:
         try:
             webbrowser.open(url)
