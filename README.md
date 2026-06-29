@@ -2,7 +2,7 @@
 
 <img src="docs/report-hero.png" alt="skills-test report — write-tests-first lifted tests pass by +58% vs a no-skill control, with a 95% confidence interval that clears zero" width="860">
 
-<p><strong>Does that Claude Code skill, model, or CLI actually make your agent code better? Run the A/B test and get a number a skeptic can check — not one diff and a vibe.</strong></p>
+<p><strong>Does that Claude Code skill, model, or CLI actually make your agent code better?</strong></p>
 
 <p>
   <a href="https://github.com/beardwhocodes/skills-test/actions/workflows/lint-test.yml"><img src="https://github.com/beardwhocodes/skills-test/actions/workflows/lint-test.yml/badge.svg" alt="CI"></a>
