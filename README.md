@@ -52,19 +52,18 @@ quarantine flaky/red checks                       deterministic scorers
                             cluster bootstrap CI · permutation p · Benjamini–Hochberg
                                                           │
                                                           ▼
-                              interactive HTML report — CIs, not point estimates
+                              interactive HTML report
 ```
 
-Each run is scored on five deterministic metrics, and the difference between arms is reported with a confidence interval rather than a single number:
+Each run is scored on five deterministic metrics; the difference between arms is reported as an effect size with a 95% confidence interval.
 
-| Metric | What it captures |
+| Metric | Measures |
 | --- | --- |
-| `tests_pass` | Did the test suite go green? *(the pre-registered primary endpoint)* |
-| `lint_pass` / `build_pass` | Did lint / build succeed? |
-| `diff_lines` | How much code did the arm write? (smaller is usually better) |
-| `cost_usd` | Per-run usage proxy (subscription usage, not API dollars) |
-
-> **It's a comparison benchmark, not a pass/fail build.** A difference is called **significant** only when the 95% CI excludes 0 *and* the run is trustworthy (≥2 clustered tasks, no contamination) — otherwise **inconclusive**. The winning arm and effect size are named in the headline, never as a green/red verdict. (The one exception is the `ci` command — a legitimate pass/fail gate that exits non-zero on a significant regression.)
+| `tests_pass` | test suite passes (primary endpoint) |
+| `lint_pass` | lint passes |
+| `build_pass` | build passes |
+| `diff_lines` | lines of code changed |
+| `cost_usd` | per-run usage proxy |
 
 ---
 
