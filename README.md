@@ -213,4 +213,4 @@ Stdlib-only, no `claude` / `git` / network required. A free `ruff` + test gate r
 
 ## License
 
-[MIT](LICENSE) © Josh Tomaino. See [`CLAUDE.md`](CLAUDE.md) for design rationale, the estimand, and open work.
+[MIT](LICENSE) © [Josh Tomaino](https://x.com/beardwhocodes) · [copyjosh.com](https://copyjosh.com). See [`CLAUDE.md`](CLAUDE.md) for design rationale, the estimand, and open work.
