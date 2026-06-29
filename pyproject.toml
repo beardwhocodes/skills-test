@@ -11,15 +11,13 @@ dependencies = []  # stdlib only by design
 
 [project.scripts]
 # One command. The head-to-head one-liner is `skills-test quick A B TARGET`.
-skills-test = "skill_ab_harness:main"
+skills-test = "skills_test:main"
 
 [tool.setuptools]
-# The engine is one module (`skill_ab_harness`); the optional local app adds two
-# more (`skill_ab_server` + `skill_ab_app`, imported lazily by `skills-test serve`).
-# Module import names stay `skill_ab_*` (invisible to CLI users) so imports/tests
-# don't churn; the distribution + command are `skills-test`.
+# The engine is one module (`skills_test`); the optional local app adds two
+# more (`skills_test_server` + `skills_test_app`, imported lazily by `skills-test serve`).
 # All fixtures/assets are embedded in-code so the wheel needs no data files.
-py-modules = ["skill_ab_harness", "skill_ab_server", "skill_ab_app"]
+py-modules = ["skills_test", "skills_test_server", "skills_test_app"]
 
 [tool.ruff]
 line-length = 100

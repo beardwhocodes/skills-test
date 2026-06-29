@@ -7,7 +7,7 @@
 > by the reviewer who dispatched you — do NOT edit `plans/README.md`.
 >
 > **Drift check (run first)**: this repo is NOT git-initialized, so there is no
-> SHA to diff against. Before editing, open `skill_ab_harness.py` and compare
+> SHA to diff against. Before editing, open `skills_test.py` and compare
 > each "Current state" excerpt below (quoted with `file:line`) to the live code.
 > If any excerpt no longer matches (line numbers may shift; the *code* must
 > match), treat it as a STOP condition and report the mismatch.
@@ -53,14 +53,14 @@ bootstrap passes are gone.
 
 ## Current state
 
-Single module: `/Users/copyjosh/Code/skills-test/skill_ab_harness.py` (~3715
-lines). Tests: `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py`
+Single module: `/Users/copyjosh/Code/skills-test/skills_test.py` (~3715
+lines). Tests: `/Users/copyjosh/Code/skills-test/test_skills_test.py`
 (custom stdlib runner — NOT pytest; 53 tests currently pass in <1s; no
 claude/git/network needed).
 
 ### The shared currency — `DiffEstimate` (do NOT change its fields)
 
-`skill_ab_harness.py:1069-1081`:
+`skills_test.py:1069-1081`:
 
 ```python
 class DiffEstimate:
@@ -80,7 +80,7 @@ class DiffEstimate:
 
 ### The estimator — consumes the RNG (each call = 10k bootstrap + 10k permutation)
 
-`skill_ab_harness.py:1180-1200`:
+`skills_test.py:1180-1200`:
 
 ```python
 def estimate_diff(results: list[RunResult], metric: str, mode: str,
@@ -110,7 +110,7 @@ stream — that is exactly what diverges today.
 
 ### Arm/pair helpers (the iteration order that makes the bug 3-arm-specific)
 
-`skill_ab_harness.py:219-235`:
+`skills_test.py:219-235`:
 
 ```python
 def experiment_pairs(cfg: ExperimentConfig) -> list[tuple[Arm, Arm]]:
@@ -134,7 +134,7 @@ def pair_key(cfg: ExperimentConfig, a: Arm, b: Arm) -> str:
 
 ### Call site #1 — markdown `build_report` (ITT primary, ITT secondary, THEN pp; own rng)
 
-`skill_ab_harness.py:1240` makes the rng; `1301-1322` is the per-pair loop:
+`skills_test.py:1240` makes the rng; `1301-1322` is the per-pair loop:
 
 ```python
     rng = random.Random(seed)
@@ -167,12 +167,12 @@ def pair_key(cfg: ExperimentConfig, a: Arm, b: Arm) -> str:
 
 Per pair this consumes: itt(primary), itt(each secondary that has data), pp(each
 metric that has data). The `_row` renderer reads only `DiffEstimate` attributes
-(`skill_ab_harness.py:1215-1231`), so it can render straight from shared
+(`skills_test.py:1215-1231`), so it can render straight from shared
 `DiffEstimate` objects unchanged.
 
 ### Call site #2 — JSON `summary_dict` / `_pair_estimates` (ITT all metrics, THEN pp; own rng)
 
-`skill_ab_harness.py:1654-1671`:
+`skills_test.py:1654-1671`:
 
 ```python
 def _pair_estimates(results: list[RunResult], cfg: ExperimentConfig, metrics: list,
@@ -195,7 +195,7 @@ def _pair_estimates(results: list[RunResult], cfg: ExperimentConfig, metrics: li
     return {"itt": itt, "per_protocol": estimates("pp")}
 ```
 
-`skill_ab_harness.py:1674-1715` — `summary_dict` builds `comparisons` from
+`skills_test.py:1674-1715` — `summary_dict` builds `comparisons` from
 `_pair_estimates`, then exposes a convenience mirror of the PRIMARY pair that
 the badge/CI read. The exact emitted shape MUST be preserved:
 
@@ -239,7 +239,7 @@ NOT the `DiffEstimate` object, and the per-comparison key is **`per_protocol`**
 
 ### Call site #3 — HTML `build_html_report` (ITT all metrics ONLY — no pp; own rng)
 
-`skill_ab_harness.py:3085` makes the rng; `3091-3104` computes + reads it:
+`skills_test.py:3085` makes the rng; `3091-3104` computes + reads it:
 
 ```python
     rng = random.Random(seed)
@@ -263,7 +263,7 @@ NOT the `DiffEstimate` object, and the per-comparison key is **`per_protocol`**
 
 `pair_itt` here is `{pair_key: {metric: DiffEstimate|None}}` (objects, NOT field
 dicts). It is consumed by `_chart_data(results, cfg, metrics, pairs, pair_itt,
-comparisons)` (`skill_ab_harness.py:2964-2995`), which reads `e.point`,
+comparisons)` (`skills_test.py:2964-2995`), which reads `e.point`,
 `e.ci_low`, `e.ci_high`, `e.p_value`, `e.q_value` off each `DiffEstimate` and
 emits the in-page blob as `itt[m] = {"point", "lo", "hi", "p", "q"}`. Note the
 HTML JSON uses the keys `lo`/`hi`, while the summary JSON uses `ci_low`/`ci_high`
@@ -277,7 +277,7 @@ reach pair #2 and pair #3 → divergent CIs for those pairs.
 
 ### The badge / CI consumers that read `summary["itt"]` (do NOT break these)
 
-`skill_ab_harness.py:1820-1827`:
+`skills_test.py:1820-1827`:
 
 ```python
 def primary_verdict(summary: dict, cfg: ExperimentConfig) -> dict | None:
@@ -298,7 +298,7 @@ def primary_verdict(summary: dict, cfg: ExperimentConfig) -> dict | None:
 
 ### How the three are wired together (same seed in practice)
 
-`_run_and_outputs` (`skill_ab_harness.py:3332-3350`) calls `build_report`,
+`_run_and_outputs` (`skills_test.py:3332-3350`) calls `build_report`,
 `summary_dict`, and `build_html_report` all with the DEFAULT `seed=0`. `cmd_demo`
 (`:3408-3411`) and the `report` command also default `seed=0`. Each function
 currently makes its OWN `random.Random(seed)`, so equality between outputs
@@ -309,9 +309,9 @@ unifies.
 
 | Purpose | Command | Expected on success |
 |---|---|---|
-| Tests | `python3 test_skill_ab_harness.py` | all pass (53 today + the new ones), exit 0, runs in <1s |
-| Lint | `uvx ruff check skill_ab_harness.py` | `All checks passed!`, exit 0 |
-| Lint tests too | `uvx ruff check test_skill_ab_harness.py` | `All checks passed!`, exit 0 |
+| Tests | `python3 test_skills_test.py` | all pass (53 today + the new ones), exit 0, runs in <1s |
+| Lint | `uvx ruff check skills_test.py` | `All checks passed!`, exit 0 |
+| Lint tests too | `uvx ruff check test_skills_test.py` | `All checks passed!`, exit 0 |
 
 Run all commands with the working directory at `/Users/copyjosh/Code/skills-test`.
 Line-length limit is 100 columns (configured for ruff) — keep every new line < 100.
@@ -319,8 +319,8 @@ Line-length limit is 100 columns (configured for ruff) — keep every new line <
 ## Scope
 
 **In scope** (the only files you should modify):
-- `/Users/copyjosh/Code/skills-test/skill_ab_harness.py`
-- `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py` (add tests)
+- `/Users/copyjosh/Code/skills-test/skills_test.py`
+- `/Users/copyjosh/Code/skills-test/test_skills_test.py` (add tests)
 
 **Out of scope** (do NOT touch):
 - `DiffEstimate`'s field list (`:1069-1081`) — it is the shared currency every
@@ -378,8 +378,8 @@ The canonical call order is: per pair, all ITT metrics (in `metrics` list order)
 then all PP metrics. This is the order summary_dict effectively used; markdown and
 HTML will now adopt it too.
 
-**Verify**: `python3 test_skill_ab_harness.py` → still all pass (function is
-added, not yet wired). `uvx ruff check skill_ab_harness.py` → clean.
+**Verify**: `python3 test_skills_test.py` → still all pass (function is
+added, not yet wired). `uvx ruff check skills_test.py` → clean.
 
 ### Step 2: Render markdown `build_report` from `compute_estimates`
 
@@ -403,9 +403,9 @@ replace every `estimate_diff(...)` call with a lookup into `est[key]`:
 Keep the no-shared-tasks placeholder line for a `None` primary (`:1309-1310`)
 exactly as-is. `_row` is unchanged.
 
-**Verify**: `python3 test_skill_ab_harness.py` → all pass (incl.
+**Verify**: `python3 test_skills_test.py` → all pass (incl.
 `test_single_task_badge_warning`, `test_head_to_head_*`). `uvx ruff check
-skill_ab_harness.py` → clean.
+skills_test.py` → clean.
 
 ### Step 3: Render JSON `summary_dict` from `compute_estimates`
 
@@ -438,7 +438,7 @@ Everything else in `summary_dict` (the `itt`/`per_protocol` primary mirror,
 `comparisons[pkey]`, whose shape is preserved (per-comparison keys
 `a`, `b`, `itt`, `per_protocol`; per-metric the same 11 keys).
 
-**Verify**: `python3 test_skill_ab_harness.py` → `test_manifest_and_summary_shape`,
+**Verify**: `python3 test_skills_test.py` → `test_manifest_and_summary_shape`,
 `test_head_to_head_three_arm_summary`, `test_ci_exit_code_policies`,
 `test_demo_results_earns_verified_offline` all pass.
 
@@ -457,35 +457,35 @@ Replace with:
 `_chart_data` and the verdict code at `:3100-3104` already expect — no further
 change there. `metrics` is already built at `:3086`.
 
-**Verify**: `python3 test_skill_ab_harness.py` →
+**Verify**: `python3 test_skills_test.py` →
 `test_build_html_report_renders_and_escapes` passes. `uvx ruff check
-skill_ab_harness.py` → clean.
+skills_test.py` → clean.
 
 ### Step 5: Remove the now-dead `_pair_estimates`
 
 `_pair_estimates` (`:1654-1671`) has no remaining caller after Step 3. Delete it
 (no orphaned partial work). Grep to confirm nothing references it.
 
-**Verify**: `grep -n "_pair_estimates" skill_ab_harness.py test_skill_ab_harness.py`
-→ no matches. `python3 test_skill_ab_harness.py` → all pass.
+**Verify**: `grep -n "_pair_estimates" skills_test.py test_skills_test.py`
+→ no matches. `python3 test_skills_test.py` → all pass.
 
 ### Step 6: Add the regression test that proves equality
 
-See the Test plan. Add the fixture + test to `test_skill_ab_harness.py`.
+See the Test plan. Add the fixture + test to `test_skills_test.py`.
 
-**Verify**: `python3 test_skill_ab_harness.py` → all pass, including the new
-test; `uvx ruff check test_skill_ab_harness.py` → clean.
+**Verify**: `python3 test_skills_test.py` → all pass, including the new
+test; `uvx ruff check test_skills_test.py` → clean.
 
 ## Test plan
 
 The existing fixtures (`_two_task_results`, `_three_arm_results` at
-`test_skill_ab_harness.py:334` and `:359`) are too degenerate to expose this bug:
+`test_skills_test.py:334` and `:359`) are too degenerate to expose this bug:
 their per-arm metric values are CONSTANT within each arm, so every bootstrap
 resample yields the identical difference and the CI is `[point, point]`
 regardless of RNG order. The regression test therefore needs WITHIN-arm variance
 on the primary pair so the bootstrap CI actually depends on the RNG stream.
 
-**New fixture** (add to `test_skill_ab_harness.py`): a 3-arm config with noisy
+**New fixture** (add to `test_skills_test.py`): a 3-arm config with noisy
 per-run scores, so the PRIMARY pair (`skill-a_vs_skill-b`, which is pair #3 —
 exactly where the old code diverged) has a non-degenerate, RNG-sensitive CI.
 Model it on `_three_arm_results` but add jitter and populate every default metric
@@ -526,7 +526,7 @@ def test_estimates_identical_across_summary_and_html():
     seed = 7
     s = h.summary_dict(res, cfg, man, seed=seed)
     doc = h.build_html_report(res, h.Preflight(), cfg, man, seed=seed)
-    blob = json.loads(doc.split("window.SKILL_AB=", 1)[1].split(";\n", 1)[0])
+    blob = json.loads(doc.split("window.SKILLS_TEST=", 1)[1].split(";\n", 1)[0])
 
     pkey = s["primary_pair"]                      # skill-a_vs_skill-b  == pair #3
     chart = next(c for c in blob["comparisons"] if c["key"] == pkey)
@@ -564,20 +564,20 @@ def test_compute_estimates_single_pass_is_order_stable():
 - Use the existing custom runner's convention: every `test_*` top-level function
   is auto-discovered (see how the file's other `test_*` functions are written —
   plain `assert`, no pytest fixtures).
-- Run: `python3 test_skill_ab_harness.py` → all pass, including the 2 new tests.
+- Run: `python3 test_skills_test.py` → all pass, including the 2 new tests.
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0; all prior tests plus the new
+- [ ] `python3 test_skills_test.py` exits 0; all prior tests plus the new
       `test_estimates_identical_across_summary_and_html` and
       `test_compute_estimates_single_pass_is_order_stable` pass.
-- [ ] `uvx ruff check skill_ab_harness.py` prints `All checks passed!` (exit 0).
-- [ ] `uvx ruff check test_skill_ab_harness.py` prints `All checks passed!`.
-- [ ] `grep -n "_pair_estimates" skill_ab_harness.py test_skill_ab_harness.py`
+- [ ] `uvx ruff check skills_test.py` prints `All checks passed!` (exit 0).
+- [ ] `uvx ruff check test_skills_test.py` prints `All checks passed!`.
+- [ ] `grep -n "_pair_estimates" skills_test.py test_skills_test.py`
       returns no matches (dead helper removed).
-- [ ] `grep -c "random.Random(seed)" skill_ab_harness.py` is lower than before:
+- [ ] `grep -c "random.Random(seed)" skills_test.py` is lower than before:
       `build_report`, `summary_dict`, and `build_html_report` no longer each
       construct their own RNG; the only `random.Random(seed)` for pairwise
       estimates lives inside `compute_estimates`. (Other unrelated `random.Random`
@@ -586,7 +586,7 @@ Machine-checkable. ALL must hold:
 - [ ] `summary_dict` still emits `schema_version: 2`, top-level `itt`,
       `per_protocol`, `validity`, `comparisons`, `primary_pair`, and per-metric
       the same 11 keys (`mean_on`…`clustered` + `q_value`).
-- [ ] No dependency added — `grep -nE "^import |^from " skill_ab_harness.py`
+- [ ] No dependency added — `grep -nE "^import |^from " skills_test.py`
       shows only stdlib modules (no numpy/pandas/jinja/pytest).
 - [ ] No file outside the in-scope list modified; `plans/README.md` NOT edited.
 

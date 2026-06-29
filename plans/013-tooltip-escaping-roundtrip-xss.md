@@ -8,7 +8,7 @@
 >
 > **Drift check (run first)**: This repo is NOT git-initialized, so there is no
 > SHA to diff against. Before editing, compare the "Current state" excerpts
-> below against the live code in `skill_ab_harness.py` at the cited line
+> below against the live code in `skills_test.py` at the cited line
 > numbers. If the live code differs from any excerpt, treat it as a STOP
 > condition (the file has drifted since this plan was written).
 
@@ -36,14 +36,14 @@ label like `<img src=x onerror=alert(1)>` therefore executes JavaScript in
 whoever opens the shared report. This plan makes the tooltip text survive that
 one attribute-decode as inert text, closing the injection.
 
-The JSON data blob (`window.SKILL_AB`) is a **separate, already-safe** path: it
+The JSON data blob (`window.SKILLS_TEST`) is a **separate, already-safe** path: it
 is emitted inside a `<script>` element with `json.dumps(...).replace("</",
 "<\\/")` (see `build_html_report`, line 3124), so raw `<img` sitting in a JSON
 string there is inert text, not markup. This plan does **not** touch that path.
 
 ## Current state
 
-Single module: `skill_ab_harness.py` (~3715 lines). The report's client-side JS
+Single module: `skills_test.py` (~3715 lines). The report's client-side JS
 lives inside a Python raw triple-quoted string literal `_HTML_SCRIPT` (starts at
 line 2201, `_HTML_SCRIPT = r"""(function(){`). It is **ES5 vanilla JS**:
 `var`/`function` only, no `let`/`const`/arrow/template-literals/backticks, lines
@@ -169,9 +169,9 @@ so the tooltip keeps its structure.
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Tests   | `python3 test_skill_ab_harness.py` | all tests pass (currently 53), exit 0, < 1s |
-| Lint    | `uvx ruff check skill_ab_harness.py` | `All checks passed!`, exit 0 |
-| Line-length spot check | `awk 'length>100{print FILENAME":"NR": "length}' skill_ab_harness.py` | no output |
+| Tests   | `python3 test_skills_test.py` | all tests pass (currently 53), exit 0, < 1s |
+| Lint    | `uvx ruff check skills_test.py` | `All checks passed!`, exit 0 |
+| Line-length spot check | `awk 'length>100{print FILENAME":"NR": "length}' skills_test.py` | no output |
 
 Run from the repo root `/Users/copyjosh/Code/skills-test`. The test runner is a
 custom stdlib runner (NOT pytest); it needs no `claude`, `git`, or network.
@@ -179,9 +179,9 @@ custom stdlib runner (NOT pytest); it needs no `claude`, `git`, or network.
 ## Scope
 
 **In scope** (the only files you should modify):
-- `skill_ab_harness.py` — only the `tip()` function and the four `tip(...)`
+- `skills_test.py` — only the `tip()` function and the four `tip(...)`
   call expressions inside `_HTML_SCRIPT` (and one new tiny helper next to it).
-- `test_skill_ab_harness.py` — add one new test.
+- `test_skills_test.py` — add one new test.
 
 **Out of scope** (do NOT touch, even though they look related):
 - The JSON blob path: `json.dumps(data).replace("</", "<\\/")` at line 3124 and
@@ -237,8 +237,8 @@ Target shape:
 Keep ES5 (no arrow functions, no template literals) and every line under 100
 columns.
 
-**Verify**: `python3 test_skill_ab_harness.py` → all existing tests still pass
-(exit 0). `uvx ruff check skill_ab_harness.py` → `All checks passed!`.
+**Verify**: `python3 test_skills_test.py` → all existing tests still pass
+(exit 0). `uvx ruff check skills_test.py` → `All checks passed!`.
 
 ### Step 2: Remove the now-redundant `esc()` calls inside the `tip(...)` arguments
 
@@ -264,13 +264,13 @@ Do **not** remove the `esc(...)` calls elsewhere in these same functions (the
 SVG `<text>` nodes at lines 2695/2697 etc.) — those are out of scope and still
 need their single escape.
 
-**Verify**: `grep -n "tip(" skill_ab_harness.py` shows no `esc(` inside any
-`tip(...)` argument list. `python3 test_skill_ab_harness.py` → all pass.
-`uvx ruff check skill_ab_harness.py` → clean.
+**Verify**: `grep -n "tip(" skills_test.py` shows no `esc(` inside any
+`tip(...)` argument list. `python3 test_skills_test.py` → all pass.
+`uvx ruff check skills_test.py` → clean.
 
 ### Step 3: Add the regression test
 
-Add a test to `test_skill_ab_harness.py` (model it after the existing
+Add a test to `test_skills_test.py` (model it after the existing
 `test_build_html_report_renders_and_escapes` at line 426, which uses
 `_two_task_results()` from line 334, `_cfg()` from line 18,
 `h.experiment_manifest(...)`, and `h.Preflight()`).
@@ -283,7 +283,7 @@ and the vulnerable patterns are gone. Also smoke-test that a malicious
 `skill_name` does not crash report generation.
 
 IMPORTANT — do NOT assert `"<img" not in doc`. The malicious string legitimately
-appears as **inert** text inside the `window.SKILL_AB` JSON blob (a JSON string
+appears as **inert** text inside the `window.SKILLS_TEST` JSON blob (a JSON string
 inside a `<script>`, protected by the `</`→`<\/` escaping at line 3124). That is
 a different, already-safe path; asserting its absence would fail even after the
 fix is correct.
@@ -312,12 +312,12 @@ def test_tooltip_payload_is_double_escaped_against_attr_roundtrip():
     assert '" <b>" + r[1] + "</b>"' not in doc
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → all pass, including the new
+**Verify**: `python3 test_skills_test.py` → all pass, including the new
 test (count goes from 53 to 54).
 
 ## Test plan
 
-- New test in `test_skill_ab_harness.py`:
+- New test in `test_skills_test.py`:
   `test_tooltip_payload_is_double_escaped_against_attr_roundtrip` — covers the
   happy path (report builds with a markup `skill_name` without raising) and the
   regression (the JS tooltip builder double-escapes head + both row cells; the
@@ -328,23 +328,23 @@ test (count goes from 53 to 54).
   faithful, dependency-free guard is to assert the hardened source is emitted
   and the vulnerable source is not. The two-decode→two-escape reasoning is
   documented in "Current state" above for the reviewer.
-- Verification: `python3 test_skill_ab_harness.py` → all pass (54 tests);
-  `uvx ruff check skill_ab_harness.py` → clean.
+- Verification: `python3 test_skills_test.py` → all pass (54 tests);
+  `uvx ruff check skills_test.py` → clean.
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0; the new test
+- [ ] `python3 test_skills_test.py` exits 0; the new test
   `test_tooltip_payload_is_double_escaped_against_attr_roundtrip` exists and
   passes (total test count 54).
-- [ ] `uvx ruff check skill_ab_harness.py` prints `All checks passed!` (exit 0).
-- [ ] `awk 'length>100{print NR}' skill_ab_harness.py` prints nothing (no line
+- [ ] `uvx ruff check skills_test.py` prints `All checks passed!` (exit 0).
+- [ ] `awk 'length>100{print NR}' skills_test.py` prints nothing (no line
   exceeds 100 columns).
-- [ ] `grep -n "function escTip" skill_ab_harness.py` returns exactly one match.
+- [ ] `grep -n "function escTip" skills_test.py` returns exactly one match.
 - [ ] No `esc(` remains inside any `tip(...)` argument list (manual check of the
   four call sites at lines ~2624/2682/2745/2794).
-- [ ] Only `skill_ab_harness.py` and `test_skill_ab_harness.py` were modified.
+- [ ] Only `skills_test.py` and `test_skills_test.py` were modified.
 
 ## STOP conditions
 

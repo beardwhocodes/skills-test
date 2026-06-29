@@ -15,7 +15,7 @@
 > Do NOT add an `Arm` enum member, a CLI flag, or a new command in this plan.
 >
 > **Drift check (run first)**: the repo is NOT git-initialized, so there is no
-> SHA to diff against. Instead, open `skill_ab_harness.py` and compare the
+> SHA to diff against. Instead, open `skills_test.py` and compare the
 > "Current state" excerpts below to the live code before editing. On any
 > mismatch (line numbers may move; the *code* should match), treat it as a STOP
 > condition and report what changed.
@@ -49,12 +49,12 @@ any of this.
 
 ## Current state
 
-Single module `skill_ab_harness.py` (~3715 lines). Tests in
-`test_skill_ab_harness.py` (custom stdlib runner — see "Commands"). The relevant
+Single module `skills_test.py` (~3715 lines). Tests in
+`test_skills_test.py` (custom stdlib runner — see "Commands"). The relevant
 machinery:
 
 - **The `Arm` enum has exactly three members, and only ONE control**
-  (`skill_ab_harness.py:91-94`):
+  (`skills_test.py:91-94`):
 
   ```python
   class Arm(str, Enum):
@@ -68,7 +68,7 @@ machinery:
   (see below). This is the core constraint the design must solve.
 
 - **`__post_init__` forbids expressing "two controls" via the `skill_b` fields**
-  (`skill_ab_harness.py:170-178`):
+  (`skills_test.py:170-178`):
 
   ```python
   def __post_init__(self):
@@ -89,7 +89,7 @@ machinery:
   doc).
 
 - **Arm → skill / label / pairs all key off `Arm` identity or `arm_label`**
-  (`skill_ab_harness.py:189-235`):
+  (`skills_test.py:189-235`):
 
   ```python
   def experiment_arms(cfg: ExperimentConfig) -> list[Arm]:
@@ -130,7 +130,7 @@ machinery:
   as `control_a` / `control_b`).
 
 - **The run loop and the worktree label key off `arm.value`**
-  (`skill_ab_harness.py:1052-1058` and `:850`):
+  (`skills_test.py:1052-1058` and `:850`):
 
   ```python
   jobs = [
@@ -153,7 +153,7 @@ machinery:
   distinct `Arm` identity and a distinct label.
 
 - **Summary builds comparisons per pair and arm_stats per label**
-  (`skill_ab_harness.py:1685-1709`):
+  (`skills_test.py:1685-1709`):
 
   ```python
   comparisons = {}
@@ -172,7 +172,7 @@ machinery:
   ```
 
 - **The core estimator** every layer rests on
-  (`skill_ab_harness.py:1103-1110`):
+  (`skills_test.py:1103-1110`):
 
   ```python
   def cluster_bootstrap_ci(on: dict[str, list[float]], off: dict[str, list[float]],
@@ -188,7 +188,7 @@ machinery:
   "tasks>=2?" open question.
 
 - **The synthetic noise simulator already does most of the math**
-  (`skill_ab_harness.py:3184-3206`) — it draws ON and OFF from the same/shifted
+  (`skills_test.py:3184-3206`) — it draws ON and OFF from the same/shifted
   center and counts how often the CI excludes 0. The noise-floor mode is the
   *empirical* analogue (real control runs instead of `rng.gauss`):
 
@@ -210,7 +210,7 @@ machinery:
       return None
   ```
 
-- **The current stopgap proxy** (`skill_ab_harness.py:3209-3214`):
+- **The current stopgap proxy** (`skills_test.py:3209-3214`):
 
   ```python
   def within_arm_noise(results: list[RunResult], metric: str, arm: Arm) -> float:
@@ -232,19 +232,19 @@ machinery:
   pytest). Python >=3.11.
 - Comments explain **why**, not what.
 - Tests are plain `test_*` functions collected and called with **no args** by a
-  custom runner (`test_skill_ab_harness.py` bottom: `_run_all()` iterates
+  custom runner (`test_skills_test.py` bottom: `_run_all()` iterates
   `globals()` for `test_`-prefixed callables and calls `fn()`). There is no
   pytest, no fixtures. Use the existing helpers `_cfg(**kw)` and
-  `_rr(arm, activated, **kw)` (see `test_skill_ab_harness.py:18-45`); seed your
+  `_rr(arm, activated, **kw)` (see `test_skills_test.py:18-45`); seed your
   own `random.Random(...)` for determinism. Keep every line <100 cols.
 
 ## Commands you will need
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Tests   | `python3 test_skill_ab_harness.py` | runs the stdlib runner; prints `N passed`, exit 0 |
-| Lint    | `uvx ruff check skill_ab_harness.py` | `All checks passed!`, exit 0 |
-| Lint tests | `uvx ruff check test_skill_ab_harness.py` | `All checks passed!`, exit 0 |
+| Tests   | `python3 test_skills_test.py` | runs the stdlib runner; prints `N passed`, exit 0 |
+| Lint    | `uvx ruff check skills_test.py` | `All checks passed!`, exit 0 |
+| Lint tests | `uvx ruff check test_skills_test.py` | `All checks passed!`, exit 0 |
 
 (There is no `git`, no `npm`, no network involved. Tests need neither `claude`
 nor `git`.)
@@ -252,12 +252,12 @@ nor `git`.)
 ## Scope
 
 **In scope** (the only files you should modify):
-- `test_skill_ab_harness.py` — add the two prototype/validation tests (Step 2, 3).
+- `test_skills_test.py` — add the two prototype/validation tests (Step 2, 3).
 - `METHODOLOGY.md` — add one "Noise floor (OFF-vs-OFF)" subsection recording the
   recommended design + open questions (Step 4).
 
 **Out of scope** (do NOT touch, even though they look related):
-- `skill_ab_harness.py` — this is a SPIKE. Do NOT add an `Arm` member, a
+- `skills_test.py` — this is a SPIKE. Do NOT add an `Arm` member, a
   `noise_floor`/`--null` config field/flag, a `null` subparser, or change
   `experiment_arms`/`arm_label`/`experiment_pairs`/`primary_pair`. The point of
   the spike is to *design and de-risk*, not implement. (Implementation is a
@@ -277,7 +277,7 @@ run `git init` or attempt to commit.
 
 ### Step 1: Confirm the design analysis against the live code (read-only)
 
-Open `skill_ab_harness.py` and confirm each excerpt in "Current state" matches
+Open `skills_test.py` and confirm each excerpt in "Current state" matches
 the live code (line numbers may have shifted; the *code* must match). In
 particular confirm: (a) `Arm` has exactly three members with one control
 (`:91-94`); (b) `arm_label` returns `name or "control"` (`:206-209`); (c)
@@ -305,7 +305,7 @@ code, STOP and report (drift). Otherwise proceed.
 
 ### Step 2: Prototype A — prove the estimator yields a *calibrated* false-positive rate for two equal-mean controls
 
-Add a deterministic test to `test_skill_ab_harness.py` named
+Add a deterministic test to `test_skills_test.py` named
 `test_noise_floor_false_positive_rate_is_calibrated`. It must feed the REAL core
 estimator `cluster_bootstrap_ci` two control draws from the **same** center
 (delta truly 0) over many trials and confirm the fraction of trials whose 95% CI
@@ -314,7 +314,7 @@ mode: two controls produce a *calibrated* spurious-significance rate, so a
 measured rate well above the floor would be a real signal.
 
 Use `random.Random(seed)` for determinism. Mirror the simulation shape in
-`minimum_detectable_effect` (`skill_ab_harness.py:3184-3206`): build
+`minimum_detectable_effect` (`skills_test.py:3184-3206`): build
 `on`/`off` as `{task: [center + gauss(0, sd) for _ in range(k)]}` with **equal**
 centers, call `cluster_bootstrap_ci(on, off, tasks, iters, alpha, rng)`, and
 count `not (lo <= 0 <= hi)`. Use >=2 tasks so the clustered (conservative) path
@@ -343,7 +343,7 @@ def test_noise_floor_false_positive_rate_is_calibrated():
     assert rate < 0.15, f"false-positive rate {rate} too high for equal-mean controls"
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → prints `ok
+**Verify**: `python3 test_skills_test.py` → prints `ok
 test_noise_floor_false_positive_rate_is_calibrated` and ends `N passed`, exit 0.
 
 ### Step 3: Prototype B — pin the label-collision constraint into an executable check
@@ -385,7 +385,7 @@ stdlib). Use this pattern for the last assertion:
     assert raised, "skill_b without a name should be rejected (cannot be a 2nd control)"
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → prints `ok
+**Verify**: `python3 test_skills_test.py` → prints `ok
 test_two_controls_collapse_under_current_arm_labels` and ends `N passed`,
 exit 0.
 
@@ -405,7 +405,7 @@ concisely. Required content (paraphrase into prose/bullets; keep lines readable)
    It reuses `experiment_pairs` / the existing estimator/badge/report stack
    unchanged (every layer iterates `experiment_arms`/`experiment_pairs`). It
    does NOT and cannot reuse the `skill_b` fields — those require a name and
-   `__post_init__` rejects a half-set pair (`skill_ab_harness.py:170-178`).
+   `__post_init__` rejects a half-set pair (`skills_test.py:170-178`).
 2. **What it reports** — the per-task delta distribution between the two
    controls, the measured noise SD (pooled `within_arm_noise` over both control
    arms), and the **empirical false-positive rate**: how often the 95% CI
@@ -414,10 +414,10 @@ concisely. Required content (paraphrase into prose/bullets; keep lines readable)
    *rate* must come from many independent control comparisons (many tasks)
    and/or a label-shuffle/permutation null over the pooled control runs — the
    empirical analogue of `minimum_detectable_effect`'s synthetic loop
-   (`skill_ab_harness.py:3184-3206`).
+   (`skills_test.py:3184-3206`).
 3. **Open questions** (record, do not resolve): (a) minimum `k` for a stable CI;
    (b) `tasks>=2` is effectively required — with one task `cluster_bootstrap_ci`
-   drops to the anticonservative flat path (`skill_ab_harness.py:1112-1116`), so
+   drops to the anticonservative flat path (`skills_test.py:1112-1116`), so
    a single-task floor understates noise; (c) how to present the floor next to a
    real run (recommend a one-line "noise floor: spurious-significant X% of the
    time; your delta = Y" annotation in the report); (d) whether to **gate** the
@@ -432,7 +432,7 @@ concisely. Required content (paraphrase into prose/bullets; keep lines readable)
 
 ## Test plan
 
-- New tests in `test_skill_ab_harness.py`:
+- New tests in `test_skills_test.py`:
   - `test_noise_floor_false_positive_rate_is_calibrated` (Step 2) — happy-path
     premise: two equal-mean controls through the REAL `cluster_bootstrap_ci`
     yield a calibrated (not inflated) spurious-exclusion rate; also asserts the
@@ -442,29 +442,29 @@ concisely. Required content (paraphrase into prose/bullets; keep lines readable)
     `control`, `pair_key` collapses to `control_vs_control`, and `skill_b`
     cannot express a nameless second control (the `__post_init__` guard fires).
 - Structural pattern to copy: the existing `test_mde_monotone`
-  (`test_skill_ab_harness.py:457-461`) for calling the estimator/simulator with
+  (`test_skills_test.py:457-461`) for calling the estimator/simulator with
   a seeded `cfg`, and `test_head_to_head_requires_both_skill_b_fields`
   (`:561`) for the try/except-on-`ValueError` shape (stdlib, no pytest).
 - These tests are deterministic (seeded `random.Random`), stdlib-only, and need
   no `claude`/`git`/network — consistent with the suite's contract.
-- Verification: `python3 test_skill_ab_harness.py` → all pass including the 2
+- Verification: `python3 test_skills_test.py` → all pass including the 2
   new tests; `N passed` increases by 2 from the prior count.
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0 and prints `N passed`, where N
+- [ ] `python3 test_skills_test.py` exits 0 and prints `N passed`, where N
       is the previous count + 2 (the two new tests both appear as `ok ...`).
-- [ ] `uvx ruff check skill_ab_harness.py` prints `All checks passed!`, exit 0.
-- [ ] `uvx ruff check test_skill_ab_harness.py` prints `All checks passed!`,
+- [ ] `uvx ruff check skills_test.py` prints `All checks passed!`, exit 0.
+- [ ] `uvx ruff check test_skills_test.py` prints `All checks passed!`,
       exit 0.
 - [ ] `grep -c "def test_noise_floor_false_positive_rate_is_calibrated\|def
       test_two_controls_collapse_under_current_arm_labels"
-      test_skill_ab_harness.py` returns `2`.
+      test_skills_test.py` returns `2`.
 - [ ] `grep -n "Noise floor" METHODOLOGY.md` returns >=1 line, and that
       subsection answers items 1–4 in Step 4.
-- [ ] `skill_ab_harness.py` is UNCHANGED (no `Arm` member, config field, flag,
+- [ ] `skills_test.py` is UNCHANGED (no `Arm` member, config field, flag,
       or function edits) — this is a spike. Verify by reading: no diff to that
       file.
 - [ ] `plans/README.md` and `plans/001`–`plans/017` are unchanged.
@@ -473,7 +473,7 @@ Machine-checkable. ALL must hold:
 
 Stop and report back (do not improvise) if:
 
-- Any "Current state" excerpt does not match the live `skill_ab_harness.py`
+- Any "Current state" excerpt does not match the live `skills_test.py`
   (drift — the design may no longer hold).
 - `Arm` has gained a control-only member, or `noise_floor` / `--null` already
   exists — the mode may have been partly implemented since this plan was
@@ -484,7 +484,7 @@ Stop and report back (do not improvise) if:
   undermines the whole premise. Report the observed rate; do not "fix" it by
   loosening the band past 0.2 without flagging it.
 - A step's verification fails twice after a reasonable fix attempt.
-- Completing a step appears to require editing `skill_ab_harness.py` (it should
+- Completing a step appears to require editing `skills_test.py` (it should
   not — if it does, the spike boundary is wrong; report it).
 
 ## Maintenance notes
@@ -497,13 +497,13 @@ spike on purpose):
   `experiment_arms` / `arm_label` (distinct `control_a`/`control_b`) /
   `experiment_pairs` / `primary_pair` for the noise-floor config. Because the
   run/estimate/summary/badge/report layers all iterate
-  `experiment_arms`/`experiment_pairs` (`skill_ab_harness.py:1052-1058`,
+  `experiment_arms`/`experiment_pairs` (`skills_test.py:1052-1058`,
   `:1685-1709`, `:2968`, `:3087`), they should carry it with no per-call-site
   edits — verify that.
 - The empirical false-positive RATE needs many independent control comparisons;
   a single OFF-vs-OFF run is one Bernoulli draw. The implementer should either
   require >=2 tasks (avoid the anticonservative flat bootstrap path at
-  `skill_ab_harness.py:1112-1116`) or add a label-shuffle null over pooled
+  `skills_test.py:1112-1116`) or add a label-shuffle null over pooled
   control runs (the empirical analogue of `minimum_detectable_effect`).
 - Keep the badge self-policing: do NOT gate it on the floor. A soft WARN when
   the real delta is below the measured floor is acceptable; a hard gate is not.

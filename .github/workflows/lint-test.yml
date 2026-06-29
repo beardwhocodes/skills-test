@@ -22,7 +22,7 @@ jobs:
         run: pip install ruff
 
       - name: Lint (line-length 100 from pyproject.toml)
-        run: ruff check skill_ab_harness.py test_skill_ab_harness.py
+        run: ruff check skills_test.py test_skills_test.py
 
       - name: Tests (stdlib runner, no claude/git/network)
-        run: python test_skill_ab_harness.py
+        run: python test_skills_test.py

@@ -34,7 +34,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          python skill_ab_harness.py ci -c skillab.toml \
+          python skills_test.py ci -c skillab.toml \
             --policy no-regression --html skills-test-report.html
 
       - name: Upload report + summary
@@ -44,4 +44,4 @@ jobs:
           name: skills-test-report
           path: |
             skills-test-report.html
-            /tmp/skill_ab_results/summary.json
+            /tmp/skills_test_results/summary.json

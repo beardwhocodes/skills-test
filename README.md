@@ -5,8 +5,7 @@ with statistical honesty instead of one-diff vibes.
 
 > Installed, the command and pip package are both **`skills-test`** (the head-to-head
 > one-liner is `skills-test quick A B TARGET`). Before install you can run the engine
-> file directly as `python3 skill_ab_harness.py <cmd>` — the Python module keeps its
-> `skill_ab_harness` import name (invisible to CLI users; not worth the import churn).
+> file directly as `python3 skills_test.py <cmd>`.
 
 ## Requires
 - Python 3.11+
@@ -15,7 +14,7 @@ with statistical honesty instead of one-diff vibes.
 ## Try it in one command (no setup, no cost)
 
 ```
-python3 skill_ab_harness.py demo         # or: skills-test demo  (after pip/uvx install)
+python3 skills_test.py demo         # or: skills-test demo  (after pip/uvx install)
 ```
 
 Renders a self-contained `report.html` from a bundled example —
@@ -29,7 +28,7 @@ and dark themes via `prefers-color-scheme`.
 ## Local app (`skills-test serve`)
 
 ```
-python3 skill_ab_harness.py serve        # or: skills-test serve   -> opens http://127.0.0.1:7878
+python3 skills_test.py serve        # or: skills-test serve   -> opens http://127.0.0.1:7878
 ```
 
 A self-contained local web app (stdlib only — no framework, no CDN, no build) that
@@ -180,6 +179,6 @@ loopback), and never a runner for arm A or the control. Raw command templates
 (`{prompt_file}` form) stay **config/CLI-only**.
 
 ## Tests
-`python3 test_skill_ab_harness.py` — stdlib-only, no `claude`/`git` required.
+`python3 test_skills_test.py` — stdlib-only, no `claude`/`git` required.
 
 See `CLAUDE.md` for design rationale, the estimand, and open work.

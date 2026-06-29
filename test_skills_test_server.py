@@ -6,7 +6,7 @@ no network beyond localhost loopback). They cover the security model (token auth
 DNS-rebinding Host check, cross-Origin POST rejection), the estimate endpoint, and a
 full DEMO run end-to-end (SSE event sequence + written run dir) -- all with ZERO
 spend, since demo mode replays the bundled `_demo_results()` instead of spawning an
-agent. Run: `python3 test_skill_ab_server.py`.
+agent. Run: `python3 test_skills_test_server.py`.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ import threading
 import time
 from pathlib import Path
 
-import skill_ab_harness as h
-import skill_ab_server as s
+import skills_test as h
+import skills_test_server as s
 
 TOKEN = "TESTTOK"
 
@@ -421,10 +421,10 @@ def test_demo_run_end_to_end_no_claude():
 
 def test_app_shell_embeds_token_and_references_api():
     # Imported lazily so the server tests still run if only the app module is absent.
-    import skill_ab_app as app
+    import skills_test_app as app
     shell = app.app_shell_html("ABC123TOK")
     assert "ABC123TOK" in shell                 # token embedded for the frontend
-    assert "SKILL_AB_TOKEN" in shell            # window global the JS reads
+    assert "SKILLS_TEST_TOKEN" in shell            # window global the JS reads
     assert "EventSource" in shell               # consumes the SSE stream
     assert "/api/" in shell                     # talks to the API
 

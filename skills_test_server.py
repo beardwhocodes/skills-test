@@ -1,6 +1,6 @@
-"""skill_ab_server — the local HTTP/SSE backend for `skills-test serve`.
+"""skills_test_server — the local HTTP/SSE backend for `skills-test serve`.
 
-A thin orchestration layer over the engine (`skill_ab_harness`). It NEVER
+A thin orchestration layer over the engine (`skills_test`). It NEVER
 re-implements statistics, scoring, or rendering — it drives `run_experiment` and
 serves the engine's own `report.html` / `summary.json`.
 
@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import skill_ab_harness as h
+import skills_test as h
 
 # A usage prior so the estimate UI shows *something*; it is a subscription usage
 # proxy, NOT a billed dollar amount (see the note returned by /api/estimate).
@@ -545,11 +545,11 @@ def _gallery_entries(runs_dir: Path) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# App shell (frontend lives in skill_ab_app; lazy import keeps this testable)
+# App shell (frontend lives in skills_test_app; lazy import keeps this testable)
 # ---------------------------------------------------------------------------
 
 def _fallback_shell(token: str) -> str:
-    """Minimal shell if skill_ab_app isn't importable (parallel build / error).
+    """Minimal shell if skills_test_app isn't importable (parallel build / error).
     Still embeds the token so the page can reach the API."""
     safe = json.dumps(token)
     return (
@@ -557,13 +557,13 @@ def _fallback_shell(token: str) -> str:
         "<title>skills-test</title></head><body>"
         "<h1>skills-test</h1>"
         "<p>Frontend module unavailable; the API is up.</p>"
-        f"<script>window.SKILL_AB_TOKEN={safe};</script>"
+        f"<script>window.SKILLS_TEST_TOKEN={safe};</script>"
         "</body></html>")
 
 
 def _app_html(token: str) -> str:
     try:
-        from skill_ab_app import app_shell_html
+        from skills_test_app import app_shell_html
         return app_shell_html(token)
     except Exception:                              # noqa: BLE001 — never 500 on the shell
         return _fallback_shell(token)

@@ -204,8 +204,8 @@ typing a setup_cmd.)
 
 | Purpose | Command | Expected |
 |---|---|---|
-| Tests | `python3 test_skill_ab_harness.py` ; `python3 test_skill_ab_server.py` | both `N passed` |
-| Lint | `uvx ruff check skill_ab_harness.py skill_ab_server.py skill_ab_app.py test_*.py` | clean |
+| Tests | `python3 test_skills_test.py` ; `python3 test_skills_test_server.py` | both `N passed` |
+| Lint | `uvx ruff check skills_test.py skills_test_server.py skills_test_app.py test_*.py` | clean |
 | Free E2E | the throwaway-git-repo + shell-agent script (no claude/codex) | a report with 2 runners |
 | Real (bounded) | one tiny `claude` vs `codex` run, k=1, 1 trivial task | a real cross-CLI report |
 

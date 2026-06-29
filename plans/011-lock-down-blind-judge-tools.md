@@ -7,7 +7,7 @@
 > edit the index yourself (your row is added separately).
 >
 > **Drift check (run first)**: the repo is NOT git-initialized, so there is no
-> SHA to diff against. Before editing, open `skill_ab_harness.py` and compare
+> SHA to diff against. Before editing, open `skills_test.py` and compare
 > the "Current state" excerpts below to the live code. If the `_judge_call`
 > argv list or `run_agent` no longer match the quoted lines, treat it as a
 > STOP condition.
@@ -39,12 +39,12 @@ it cannot regress quality because the judge never needs a tool to emit JSON.
 
 Files (only one module + its test file in this repo):
 
-- `skill_ab_harness.py` (~3715 lines) — the whole harness. The judge subprocess
+- `skills_test.py` (~3715 lines) — the whole harness. The judge subprocess
   is built and run in `_judge_call` (around line 1436). The diff text it judges
   is assembled in `_judge_prompt` (line 1397) and embedded verbatim:
 
   ```python
-  # skill_ab_harness.py:1397-1408
+  # skills_test.py:1397-1408
   def _judge_prompt(task_prompt: str, resp_a: str, resp_b: str, axis: str) -> str:
       return (
           "You are a meticulous, impartial code reviewer comparing two solutions to "
@@ -58,7 +58,7 @@ Files (only one module + its test file in this repo):
 - The judge subprocess argv is an **inline list** with no tool restriction:
 
   ```python
-  # skill_ab_harness.py:1446-1454  (inside _judge_call)
+  # skills_test.py:1446-1454  (inside _judge_call)
               cmd = [
                   "claude", "-p", prompt,
                   "--output-format", "json",
@@ -71,13 +71,13 @@ Files (only one module + its test file in this repo):
   ```
 
   Note: `cfg.permission_mode` defaults to `"acceptEdits"`
-  (`skill_ab_harness.py:136`), so an injected edit would NOT be blocked by the
+  (`skills_test.py:136`), so an injected edit would NOT be blocked by the
   permission prompt. There is **no** `--allowedTools` here.
 
 - Contrast — the agent runner already constrains tools, the pattern to match:
 
   ```python
-  # skill_ab_harness.py:654-666  (inside run_agent)
+  # skills_test.py:654-666  (inside run_agent)
       cmd = [
           "claude", "-p", task.prompt,
           "--output-format", "stream-json",
@@ -99,22 +99,22 @@ Conventions that apply here:
 - Comments explain **why**, not what (see the inline `# deny rules win over
   allow` style above).
 - Lines stay **< 100 columns** (ruff `line-length = 100` in `pyproject.toml`).
-- Tests live in `test_skill_ab_harness.py`, run by a **custom stdlib runner**
+- Tests live in `test_skills_test.py`, run by a **custom stdlib runner**
   (NOT pytest): every top-level `test_*` function is collected and called; the
   file prints `N passed`. Use the existing helper `_cfg(**kw)`
-  (`test_skill_ab_harness.py:18`) which builds an `ExperimentConfig` with sane
+  (`test_skills_test.py:18`) which builds an `ExperimentConfig` with sane
   defaults — pass overrides as kwargs. The judge-logic tests already live under
   the `# Blind qualitative judge — pure logic` section
-  (`test_skill_ab_harness.py:205+`); add the new test there, next to
+  (`test_skills_test.py:205+`); add the new test there, next to
   `test_judge_pairs_caps_and_handles_empty`.
 
 ## Commands you will need
 
 | Purpose | Command | Expected on success |
 |---|---|---|
-| Compile | `python3 -m py_compile skill_ab_harness.py test_skill_ab_harness.py` | exit 0, no output |
-| Tests | `python3 test_skill_ab_harness.py` | last line `54 passed` (was `53 passed`) |
-| Lint | `uvx ruff check skill_ab_harness.py` | `All checks passed!` |
+| Compile | `python3 -m py_compile skills_test.py test_skills_test.py` | exit 0, no output |
+| Tests | `python3 test_skills_test.py` | last line `54 passed` (was `53 passed`) |
+| Lint | `uvx ruff check skills_test.py` | `All checks passed!` |
 
 (Run from the repo root `/Users/copyjosh/Code/skills-test`. The test runner needs
 no `claude`, `git`, or network — it exercises pure logic only.)
@@ -122,12 +122,12 @@ no `claude`, `git`, or network — it exercises pure logic only.)
 ## Scope
 
 **In scope** (the only files you may modify):
-- `skill_ab_harness.py` — extract a `_judge_argv(prompt, cfg)` helper and add
+- `skills_test.py` — extract a `_judge_argv(prompt, cfg)` helper and add
   `--allowedTools ""` to it.
-- `test_skill_ab_harness.py` — add one test for `_judge_argv`.
+- `test_skills_test.py` — add one test for `_judge_argv`.
 
 **Out of scope** (do NOT touch):
-- The `run_agent` argv (`skill_ab_harness.py:654`) — it is already constrained;
+- The `run_agent` argv (`skills_test.py:654`) — it is already constrained;
   this plan only touches the judge.
 - `cfg.permission_mode` itself, and the `--permission-mode` flag — do NOT change
   the default to `plan`/deny here (see Maintenance notes; it is a separate
@@ -146,7 +146,7 @@ open a PR.
 
 ### Step 1: Extract the judge argv into a testable helper with an empty allow-list
 
-In `skill_ab_harness.py`, add a small module-level helper **immediately above**
+In `skills_test.py`, add a small module-level helper **immediately above**
 `_judge_call` (just after `_judge_pairs`, before `async def _judge_call`). It
 returns the exact same argv as today **plus** an empty `--allowedTools`:
 
@@ -170,7 +170,7 @@ def _judge_argv(prompt: str, cfg: ExperimentConfig) -> list[str]:
 ```
 
 Then replace the inline `cmd = [ ... ]` block inside `_judge_call`
-(`skill_ab_harness.py:1446-1454`) with a single call:
+(`skills_test.py:1446-1454`) with a single call:
 
 ```python
             cmd = _judge_argv(prompt, cfg)
@@ -180,15 +180,15 @@ Leave the rest of `_judge_call` (the `mkdtemp`, `create_subprocess_exec(*cmd,
 cwd=tmp, ...)`, timeout, and parsing) untouched. The refactor must be
 behavior-identical **except** for the added `--allowedTools ""`.
 
-**Verify**: `python3 -m py_compile skill_ab_harness.py` → exit 0, and
-`uvx ruff check skill_ab_harness.py` → `All checks passed!`
+**Verify**: `python3 -m py_compile skills_test.py` → exit 0, and
+`uvx ruff check skills_test.py` → `All checks passed!`
 
 ### Step 2: Add a pure unit test for the judge argv
 
 The judge path shells out to `claude`, so it cannot run under the stdlib test
 runner. Test the **argv builder** instead. Add this next to
 `test_judge_pairs_caps_and_handles_empty` in
-`test_skill_ab_harness.py` (the `# Blind qualitative judge — pure logic`
+`test_skills_test.py` (the `# Blind qualitative judge — pure logic`
 section, ~line 230):
 
 ```python
@@ -205,12 +205,12 @@ def test_judge_argv_grants_no_tools():
     assert "--disable-slash-commands" in argv and "--strict-mcp-config" in argv
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → last line `54 passed`, and the
+**Verify**: `python3 test_skills_test.py` → last line `54 passed`, and the
 line `ok  test_judge_argv_grants_no_tools` appears in the output.
 
 ## Test plan
 
-- New test in `test_skill_ab_harness.py`: `test_judge_argv_grants_no_tools`
+- New test in `test_skills_test.py`: `test_judge_argv_grants_no_tools`
   (added in Step 2). It covers:
   - happy path: `_judge_argv` returns an argv containing `--allowedTools`
     followed by `""` (the empty allow-list — the security fix);
@@ -222,29 +222,29 @@ line `ok  test_judge_argv_grants_no_tools` appears in the output.
   section (`test_judge_pairs_caps_and_handles_empty`,
   `test_aggregate_position_bias_washes_out`) — same `h.`-prefixed access and
   `_cfg()` helper.
-- Verification: `python3 test_skill_ab_harness.py` → `54 passed` (one more than
+- Verification: `python3 test_skills_test.py` → `54 passed` (one more than
   the current `53 passed`).
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 -m py_compile skill_ab_harness.py test_skill_ab_harness.py` exits 0.
-- [ ] `python3 test_skill_ab_harness.py` prints `54 passed`, including
+- [ ] `python3 -m py_compile skills_test.py test_skills_test.py` exits 0.
+- [ ] `python3 test_skills_test.py` prints `54 passed`, including
       `test_judge_argv_grants_no_tools`.
-- [ ] `uvx ruff check skill_ab_harness.py` prints `All checks passed!`.
-- [ ] `grep -n "_judge_argv" skill_ab_harness.py` shows the helper definition
+- [ ] `uvx ruff check skills_test.py` prints `All checks passed!`.
+- [ ] `grep -n "_judge_argv" skills_test.py` shows the helper definition
       AND its use inside `_judge_call` (the inline `cmd = [ ... ]` list is gone).
-- [ ] `grep -n -- '--allowedTools' skill_ab_harness.py` shows the flag in BOTH
+- [ ] `grep -n -- '--allowedTools' skills_test.py` shows the flag in BOTH
       `run_agent` and `_judge_argv` (2+ matches).
-- [ ] No files outside `skill_ab_harness.py` and `test_skill_ab_harness.py` are
+- [ ] No files outside `skills_test.py` and `test_skills_test.py` are
       modified.
 
 ## STOP conditions
 
 Stop and report back (do not improvise) if:
 
-- The code at `skill_ab_harness.py:1446-1454` no longer matches the inline `cmd`
+- The code at `skills_test.py:1446-1454` no longer matches the inline `cmd`
   list quoted in "Current state" (the harness drifted since this plan was
   written).
 - After adding the helper, `_judge_call` no longer references `cmd` /

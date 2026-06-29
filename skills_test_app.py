@@ -1,4 +1,4 @@
-"""skill_ab_app.py — the `skills-test serve` frontend (one self-contained SPA).
+"""skills_test_app.py — the `skills-test serve` frontend (one self-contained SPA).
 
 This module owns *only* the browser-facing UI. `app_shell_html(token)` returns a
 single HTML document (no external assets, no framework, no build step) that talks
@@ -8,7 +8,7 @@ to the server's frozen HTTP/SSE API (see plans/021). Three pieces:
 - `_APP_JS`    — vanilla JS: a hash router over 5 views + the live SSE renderer.
 - `app_shell_html(token)` — assembles the document and embeds the session token.
 
-WHY reuse `skill_ab_harness._HTML_STYLE`: the serve UI must read as the same
+WHY reuse `skills_test._HTML_STYLE`: the serve UI must read as the same
 product as the generated `report.html`, so all color/shadow/radius/dark-mode
 tokens come from there; we only add the shell (sidebar, top bar, forms, the live
 cell grid + console). The frontend is dumb on purpose — every statistic, verdict
@@ -18,7 +18,7 @@ paints the stream.
 
 import json
 
-import skill_ab_harness as h
+import skills_test as h
 
 # ---------------------------------------------------------------------------
 # App chrome CSS (sits on top of _HTML_STYLE's tokens; never redefines them).
@@ -465,7 +465,7 @@ _SHELL_HTML = """
 _APP_JS = r"""
 (function(){
   "use strict";
-  var TOKEN = window.SKILL_AB_TOKEN || "";
+  var TOKEN = window.SKILLS_TEST_TOKEN || "";
   var view = document.getElementById("view");
   var titleEl = document.getElementById("appbar-title");
   var dotEl = document.getElementById("health-dot");
@@ -1693,7 +1693,7 @@ def app_shell_html(token: str) -> str:
         "<style>", h._HTML_STYLE, _APP_CSS, "</style></head>",
         "<body class='app-body'>",
         _SHELL_HTML,
-        "<script>window.SKILL_AB_TOKEN=", token_js, ";</script>",
+        "<script>window.SKILLS_TEST_TOKEN=", token_js, ";</script>",
         "<script>", _APP_JS, "</script>",
         "</body></html>",
     ])

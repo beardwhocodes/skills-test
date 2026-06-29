@@ -1,5 +1,5 @@
 """
-skill_ab_harness.py
+skills_test.py
 ====================
 
 A robust, coding-specific A/B harness for measuring the effect of a single
@@ -177,8 +177,8 @@ class ExperimentConfig:
     agent_timeout_s: float = 1200.0    # wall-clock kill for a hung `claude -p`
     setup_timeout_s: float = 1200.0
     scorer_timeout_s: int = 600
-    worktree_root: Path = Path("/tmp/skill_ab_worktrees")
-    results_dir: Path = Path("/tmp/skill_ab_results")   # JSONL + failure artifacts
+    worktree_root: Path = Path("/tmp/skills_test_worktrees")
+    results_dir: Path = Path("/tmp/skills_test_results")   # JSONL + failure artifacts
     permission_mode: str = "acceptEdits"   # use --dangerously-skip... only in a container
     # `Skill` MUST be present or the skill can never be invoked in headless -p.
     allowed_tools: tuple[str, ...] = ("Read", "Edit", "Write", "Bash", "Skill")
@@ -1808,7 +1808,7 @@ async def _judge_call(prompt: str, cfg: ExperimentConfig,
     drop ambient MCP servers. (Auth and the host's global CLAUDE.md still apply --
     keep the judge host neutral.) Returns the parsed {winner, reason} or None."""
     async with sem:
-        tmp = tempfile.mkdtemp(prefix="skill_ab_judge_")
+        tmp = tempfile.mkdtemp(prefix="skills_test_judge_")
         try:
             cmd = _judge_argv(prompt, cfg)
             proc = await asyncio.create_subprocess_exec(
@@ -2154,7 +2154,7 @@ def experiment_manifest(cfg: ExperimentConfig, seed: int = 0,
         "timestamp": timestamp,
         # The independent variable itself (plan 024 §2): shared prompt + per-arm
         # added tokens / injected guidance. Computed ONCE here (never per-run, which
-        # would bloat results.jsonl). Guidance text stays out of window.SKILL_AB.
+        # would bloat results.jsonl). Guidance text stays out of window.SKILLS_TEST.
         "treatments": _treatments_block(cfg, tasks, offline),
     }
 
@@ -3278,14 +3278,14 @@ _HTML_STYLE = """
 
 
 # Vanilla-JS dashboard renderer (inline SVG, no libraries/CDN -> the report stays a
-# single self-contained offline file). Reads the embedded `window.SKILL_AB` blob and
+# single self-contained offline file). Reads the embedded `window.SKILLS_TEST` blob and
 # builds header/hero/arms/charts/judge/audit; every value is derived from the blob so
 # it generalises across 2-N arms, tasks and metrics. The heavy, escape-sensitive bits
 # (work-product diffs, judge reasons) are rendered server-side by Python and appended
 # after #app -- the JS never touches them.
 _HTML_SCRIPT = r"""(function(){
   "use strict";
-  var D = window.SKILL_AB || {};
+  var D = window.SKILLS_TEST || {};
   var META = D.meta || {};
   var VERD = D.verdict || {label:"inconclusive", tone:"flat",
     text:"No significant difference"};
@@ -4871,7 +4871,7 @@ def _work_blob(results: list[RunResult], cfg: ExperimentConfig, arms: list) -> d
     counts, DOM ids, status letters and truncation flags -- NEVER diff text, paths or
     code. The diff DOM is pre-rendered + escaped server-side; this blob just lets the
     JS pick runs and label the file rail without re-parsing content. (A test asserts no
-    diff substring reaches `window.SKILL_AB`.)"""
+    diff substring reaches `window.SKILLS_TEST`.)"""
     work: dict = {}
     for tid in sorted({r.task_id for r in results}):
         files: list[dict] = []
@@ -4898,7 +4898,7 @@ def _treatment_inputs_html(manifest: dict, cfg: ExperimentConfig) -> str:
     """The independent variable, made legible (plan 024 §2.3): the identical
     `claude -p "<prompt>"` both arms ran + EXACTLY what the skill arm added on top.
     Rendered server-side and FULLY escaped -- the prompt and injected guidance live
-    only in this static body (prepended outside #app) and never enter window.SKILL_AB
+    only in this static body (prepended outside #app) and never enter window.SKILLS_TEST
     nor any innerHTML-of-raw path. Reads the `treatments` block experiment_manifest
     persists (empty/absent -> renders nothing)."""
     tr = manifest.get("treatments")
@@ -4977,7 +4977,7 @@ def _treatment_inputs_html(manifest: dict, cfg: ExperimentConfig) -> str:
 # Contrast band: verdict-first scorecards + divergence map + beat captions
 # (plan 024 §1.6). Everything here is built SERVER-SIDE and escaped: integers, a
 # single status letter, and html.escape'd filenames ONLY -- no raw diff code, and
-# nothing here ever enters window.SKILL_AB or an innerHTML-of-raw-text path. Beat
+# nothing here ever enters window.SKILLS_TEST or an innerHTML-of-raw-text path. Beat
 # captions ride the native `title` attribute (plain text), NOT `data-tip` -- the
 # tooltip wiring assigns data-tip through innerHTML, which a user-controlled
 # filename must never reach.
@@ -5361,7 +5361,7 @@ def build_html_report(results: list[RunResult], pf: Preflight, cfg: ExperimentCo
     """One self-contained, offline .html dashboard: header + verdict hero + arm
     cards + interactive metric charts + blind-judge panel + collapsible audit
     (stats, all-runs, work-product diffs, judge reasons). No external assets; every
-    figure is hand-built inline SVG driven by the embedded `window.SKILL_AB` blob."""
+    figure is hand-built inline SVG driven by the embedded `window.SKILLS_TEST` blob."""
     scorers = default_scorers(cfg)
     metrics = [s.name for s in scorers] + ["cost_usd"]
     arms = experiment_arms(cfg)
@@ -5408,7 +5408,7 @@ def build_html_report(results: list[RunResult], pf: Preflight, cfg: ExperimentCo
 
     # Prepend the treatment/inputs panel so the IV lands at the top of the static
     # body (outside #app); guidance/prompt text is escaped here and never reaches the
-    # window.SKILL_AB blob (which carries only counts/ids/flags).
+    # window.SKILLS_TEST blob (which carries only counts/ids/flags).
     server_detail = _treatment_inputs_html(manifest, cfg)
     server_detail += _work_products_html(results, cfg, arms)
     if comparisons:
@@ -5431,7 +5431,7 @@ def build_html_report(results: list[RunResult], pf: Preflight, cfg: ExperimentCo
         server_detail,
         f"<footer>{footer}</footer>",
         "</div><div id='tip' role='tooltip' aria-hidden='true'></div>",
-        f"<script>window.SKILL_AB={blob};\n{_HTML_SCRIPT}</script>",
+        f"<script>window.SKILLS_TEST={blob};\n{_HTML_SCRIPT}</script>",
         "</body></html>",
     ]
     return "".join(parts)
@@ -5631,7 +5631,7 @@ def _clone_from_github(url: str, config_name: str) -> tuple[ExperimentConfig, li
     SECURITY: the cloned config's setup_cmd/test_cmd/prompt run on THIS machine and
     drive `claude -p` over the cloned code. Only the caller (gated by --trust-remote)
     should reach here. `--` stops a hostile `url` from being read as a git option."""
-    dest = Path(tempfile.mkdtemp(prefix="skill_ab_clone_"))
+    dest = Path(tempfile.mkdtemp(prefix="skills_test_clone_"))
     subprocess.run(["git", "clone", "--depth", "1", "--", url, str(dest)], check=True)
     cfg_path = dest / config_name
     if not cfg_path.exists():
@@ -5789,7 +5789,7 @@ def _ensure_pr_repo(owner_repo: str, _url: str) -> Path:
         # EXACT owner/repo match (not endswith — 'sub-acme/repo' must not match 'acme/repo').
         if _norm_remote(cur.stdout.strip()).split("/")[-2:] == owner_repo.lower().split("/"):
             return Path.cwd()
-    dest = Path(tempfile.mkdtemp(prefix="skill_ab_repo_")) / owner_repo.split("/")[-1]
+    dest = Path(tempfile.mkdtemp(prefix="skills_test_repo_")) / owner_repo.split("/")[-1]
     subprocess.run(["gh", "repo", "clone", owner_repo, str(dest), "--", "--depth", "50"],
                    check=True)
     return dest
@@ -6000,7 +6000,7 @@ def main(argv: list[str] | None = None) -> int:
         cmd_init(args.config)
         return 0
     if args.cmd == "serve":
-        from skill_ab_server import serve   # lazy: engine has no hard dep on the server
+        from skills_test_server import serve   # lazy: engine has no hard dep on the server
         serve(host="127.0.0.1", port=args.port, runs_dir=args.runs_dir,
               open_browser=not args.no_open)
         return 0

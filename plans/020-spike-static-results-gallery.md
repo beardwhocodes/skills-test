@@ -13,7 +13,7 @@
 >
 > **Drift check (run first)**: this repo is NOT git-initialized, so there is no SHA
 > to diff against. Instead, compare the "Current state" excerpts below to the live
-> code in `skill_ab_harness.py` before editing. On any mismatch, treat it as a STOP
+> code in `skills_test.py` before editing. On any mismatch, treat it as a STOP
 > condition.
 
 ## Status
@@ -50,17 +50,17 @@ build/no-build decision cheap and informed, not to ship the feature.
 
 ## Current state
 
-Single module: `skill_ab_harness.py` (~3715 lines), stdlib-only, Python >=3.11.
-Tests: `test_skill_ab_harness.py` (custom runner, NOT pytest; 53 tests pass in
-<1s; no `claude`/`git`/network needed). Lint: `uvx ruff check skill_ab_harness.py`
-(line-length 100). `__version__ = "0.2.0"` at `skill_ab_harness.py:84` (kept in
+Single module: `skills_test.py` (~3715 lines), stdlib-only, Python >=3.11.
+Tests: `test_skills_test.py` (custom runner, NOT pytest; 53 tests pass in
+<1s; no `claude`/`git`/network needed). Lint: `uvx ruff check skills_test.py`
+(line-length 100). `__version__ = "0.2.0"` at `skills_test.py:84` (kept in
 sync with `pyproject.toml`).
 
 **STDLIB-ONLY is a hard rule.** Never add a dependency (no numpy/pandas/jinja/
 pytest). The HTML report's CSS lives inside a Python triple-quoted string
-(`_HTML_STYLE`, starts at `skill_ab_harness.py:1857`); its JS lives inside a raw
+(`_HTML_STYLE`, starts at `skills_test.py:1857`); its JS lives inside a raw
 triple-quoted r-string of ES5 vanilla JS (`_HTML_SCRIPT`, starts at
-`skill_ab_harness.py:2201` — var/function only, no template literals, no
+`skills_test.py:2201` — var/function only, no template literals, no
 backticks). Comments explain WHY, not what. Keep every line < 100 columns.
 
 ### The substrate the gallery ingests
@@ -68,7 +68,7 @@ backticks). Comments explain WHY, not what. Keep every line < 100 columns.
 `summary_dict(...)` produces the portable, schema-versioned blob that each run
 persists as `summary.json`. It is stamped `schema_version: 2` and carries a
 convenience `itt`/`validity` mirror of the PRIMARY pair so simple consumers (badge,
-CI) don't have to walk `comparisons`. From `skill_ab_harness.py:1674-1715`:
+CI) don't have to walk `comparisons`. From `skills_test.py:1674-1715`:
 
 ```python
 def summary_dict(results: list[RunResult], cfg: ExperimentConfig, manifest: dict,
@@ -98,7 +98,7 @@ def summary_dict(results: list[RunResult], cfg: ExperimentConfig, manifest: dict
     }
 ```
 
-`write_summary(...)` (`skill_ab_harness.py:1718-1723`) writes that dict to
+`write_summary(...)` (`skills_test.py:1718-1723`) writes that dict to
 `results_dir/summary.json`. The contract is pinned in `results.schema.json`: the
 top is `{"schema_version": {"const": 2}, ...}` (`results.schema.json:10`), required
 keys are `["schema_version","manifest","primary_metric","primary_pair","arms",
@@ -109,7 +109,7 @@ keys are `["schema_version","manifest","primary_metric","primary_pair","arms",
 
 `badge_verdict(...)` maps a primary-metric estimate to a self-policing label/color
 (grey unless the 95% CI excludes 0 AND the run is trustworthy). From
-`skill_ab_harness.py:1768-1783`:
+`skills_test.py:1768-1783`:
 
 ```python
 def badge_verdict(est: dict, direction: int, n_tasks: int, clustered: bool,
@@ -131,13 +131,13 @@ def badge_verdict(est: dict, direction: int, n_tasks: int, clustered: bool,
 ```
 
 `render_badge_svg(...)` emits a flat shields-style SVG with **no external assets/
-deps** (`skill_ab_harness.py:1786-1802`). `badge_endpoint_json(...)` emits the
+deps** (`skills_test.py:1786-1802`). `badge_endpoint_json(...)` emits the
 shields.io endpoint schema and `badge_markdown(...)` emits the paste-able badge +
-CI comment (`skill_ab_harness.py:1805-1817`).
+CI comment (`skills_test.py:1805-1817`).
 
 `primary_verdict(...)` is the existing "summary.json → verdict" adapter, but it
 needs an `ExperimentConfig` purely to look up metric direction. From
-`skill_ab_harness.py:1820-1827`:
+`skills_test.py:1820-1827`:
 
 ```python
 def primary_verdict(summary: dict, cfg: ExperimentConfig) -> dict | None:
@@ -151,7 +151,7 @@ def primary_verdict(summary: dict, cfg: ExperimentConfig) -> dict | None:
 ```
 
 `_metric_direction(...)` falls back to `-1` for `cost_usd`/`diff_lines` and `1`
-otherwise when no scorer matches (`skill_ab_harness.py:1757-1761`):
+otherwise when no scorer matches (`skills_test.py:1757-1761`):
 
 ```python
 def _metric_direction(cfg: ExperimentConfig, metric: str) -> int:
@@ -169,19 +169,19 @@ an honest limitation, captured as an open question below.
 
 ### The page-rendering pattern to follow (link out, don't embed)
 
-`build_html_report(...)` (`skill_ab_harness.py:3077-3150`) is the per-run dashboard:
-it assembles a `window.SKILL_AB` JSON blob, inlines `_HTML_STYLE` and `_HTML_SCRIPT`,
+`build_html_report(...)` (`skills_test.py:3077-3150`) is the per-run dashboard:
+it assembles a `window.SKILLS_TEST` JSON blob, inlines `_HTML_STYLE` and `_HTML_SCRIPT`,
 and returns one self-contained string. `cmd_demo(...)`
-(`skill_ab_harness.py:3397-3418`) is the closest pattern for a new offline,
+(`skills_test.py:3397-3418`) is the closest pattern for a new offline,
 stdlib-only, zero-cost renderer: it builds `RunResult`s in code, writes
 `report.html` + `summary.json` + `badge.svg` into an out dir, spends nothing. The
 CLI dispatch lives in `main(...)` with one `sub.add_parser(...)` per command
-(`skill_ab_harness.py:3611-3663`); the `demo` subparser is at
-`skill_ab_harness.py:3654-3656` and is dispatched at `skill_ab_harness.py:3662`.
+(`skills_test.py:3611-3663`); the `demo` subparser is at
+`skills_test.py:3654-3656` and is dispatched at `skills_test.py:3662`.
 
 ### Test conventions
 
-Tests use helpers in `test_skill_ab_harness.py`: `_cfg(**kw)` (line 18) builds an
+Tests use helpers in `test_skills_test.py`: `_cfg(**kw)` (line 18) builds an
 `ExperimentConfig`; `_rr(arm, activated, ...)` (line 41) builds a `RunResult`;
 `_two_task_results(...)` (line 334) builds a clean 2-task ON/OFF result set.
 `test_manifest_and_summary_shape` (line 344) already calls
@@ -194,9 +194,9 @@ with no registration.
 
 | Purpose            | Command                                              | Expected on success            |
 |--------------------|------------------------------------------------------|--------------------------------|
-| Run tests          | `python3 test_skill_ab_harness.py`                   | ends `N passed` (N ≥ 55), exit 0 |
-| Lint               | `uvx ruff check skill_ab_harness.py`                 | `All checks passed!`, exit 0   |
-| Smoke the prototype| `python3 -c "import skill_ab_harness as h; print(len(h.build_gallery_html([])))"` | prints a positive integer, exit 0 |
+| Run tests          | `python3 test_skills_test.py`                   | ends `N passed` (N ≥ 55), exit 0 |
+| Lint               | `uvx ruff check skills_test.py`                 | `All checks passed!`, exit 0   |
+| Smoke the prototype| `python3 -c "import skills_test as h; print(len(h.build_gallery_html([])))"` | prints a positive integer, exit 0 |
 
 (Run all commands from the repo root `/Users/copyjosh/Code/skills-test`. The repo
 is NOT git-initialized — there is no branch/commit workflow; edit files in place.)
@@ -204,13 +204,13 @@ is NOT git-initialized — there is no branch/commit workflow; edit files in pla
 ## Scope
 
 **In scope** (the only files you may modify):
-- `skill_ab_harness.py` — add `build_gallery_html(...)` and the cfg-free verdict
+- `skills_test.py` — add `build_gallery_html(...)` and the cfg-free verdict
   helper `_gallery_verdict_from_summary(...)`, placed in the badge section right
-  AFTER `primary_verdict` (`skill_ab_harness.py:1820-1827`). Pure functions only.
-- `test_skill_ab_harness.py` — add the prototype tests.
+  AFTER `primary_verdict` (`skills_test.py:1820-1827`). Pure functions only.
+- `test_skills_test.py` — add the prototype tests.
 
 **Out of scope** (do NOT touch, even though they look related):
-- `main(...)` / the argparse subparsers (`skill_ab_harness.py:3603-3711`) — do NOT
+- `main(...)` / the argparse subparsers (`skills_test.py:3603-3711`) — do NOT
   wire a `gallery` CLI subcommand. The command's surface is a DESIGN deliverable in
   this plan, not a build deliverable for this spike. Wiring it (file globbing,
   manifest-of-URLs ingestion, `--out` dir) is explicitly deferred.
@@ -272,7 +272,7 @@ forgeable:
   `skill_md_sha256`, `base_ref_sha`, `model`, `harness_version`, `claude_cli_version`
   let a viewer RE-RUN the experiment (`run --from-github <url>` already shallow-
   clones a repo and runs its committed config — `_clone_from_github`,
-  `skill_ab_harness.py:3309`) and check whether the CIs overlap. The harness still
+  `skills_test.py:3309`) and check whether the CIs overlap. The harness still
   cannot attest the original numbers came from a real run; reproduction is the only
   real trust anchor.
 - **Decision**: the gallery treats every entry as a CLAIM and labels it
@@ -318,16 +318,16 @@ Policy decisions:
 
 | Need | Reuse | Anchor |
 |------|-------|--------|
-| Shape of each ingested entry | `summary_dict` | `skill_ab_harness.py:1674` |
+| Shape of each ingested entry | `summary_dict` | `skills_test.py:1674` |
 | Contract to validate (`schema_version`, required keys) | `results.schema.json` | `results.schema.json:7,10,15` |
-| Score an entry → label/color | `badge_verdict` | `skill_ab_harness.py:1768` |
-| Per-entry inline SVG badge (no assets) | `render_badge_svg` | `skill_ab_harness.py:1786` |
-| Paste-able badge snippet per entry | `badge_endpoint_json` / `badge_markdown` | `skill_ab_harness.py:1805,1813` |
-| Existing summary→verdict adapter (needs cfg) | `primary_verdict` | `skill_ab_harness.py:1820` |
-| Direction fallback (cfg-free path only) | `_metric_direction` last line | `skill_ab_harness.py:1761` |
-| Page CSS to inline for a consistent look | `_HTML_STYLE` | `skill_ab_harness.py:1857` |
-| Per-run report to LINK to (never embed) | `build_html_report` | `skill_ab_harness.py:3077` |
-| Offline/zero-cost renderer pattern | `cmd_demo` | `skill_ab_harness.py:3397` |
+| Score an entry → label/color | `badge_verdict` | `skills_test.py:1768` |
+| Per-entry inline SVG badge (no assets) | `render_badge_svg` | `skills_test.py:1786` |
+| Paste-able badge snippet per entry | `badge_endpoint_json` / `badge_markdown` | `skills_test.py:1805,1813` |
+| Existing summary→verdict adapter (needs cfg) | `primary_verdict` | `skills_test.py:1820` |
+| Direction fallback (cfg-free path only) | `_metric_direction` last line | `skills_test.py:1761` |
+| Page CSS to inline for a consistent look | `_HTML_STYLE` | `skills_test.py:1857` |
+| Per-run report to LINK to (never embed) | `build_html_report` | `skills_test.py:3077` |
+| Offline/zero-cost renderer pattern | `cmd_demo` | `skills_test.py:3397` |
 
 ### Open questions (enumerate in your hand-off; do not resolve them by building)
 
@@ -353,8 +353,8 @@ Policy decisions:
 
 ### Step 1: Add the cfg-free verdict helper `_gallery_verdict_from_summary`
 
-In `skill_ab_harness.py`, immediately AFTER `primary_verdict`
-(`skill_ab_harness.py:1820-1827`), add a verdict adapter that works from a
+In `skills_test.py`, immediately AFTER `primary_verdict`
+(`skills_test.py:1820-1827`), add a verdict adapter that works from a
 `summary.json` dict alone (no `ExperimentConfig`). It must reuse `badge_verdict`
 and use ONLY the cfg-free direction fallback. Target shape:
 
@@ -376,7 +376,7 @@ def _gallery_verdict_from_summary(summary: dict) -> dict | None:
 Keep every line < 100 columns; the comment explains WHY (no cfg → fallback), not
 what.
 
-**Verify**: `python3 -c "import skill_ab_harness as h; print(h._gallery_verdict_from_summary({'primary_metric':'tests_pass','itt':{'tests_pass':{'point':0.5,'ci_low':0.2,'ci_high':0.8,'n_tasks':2,'clustered':True}},'validity':{'off_contaminated':0}})['label'])"`
+**Verify**: `python3 -c "import skills_test as h; print(h._gallery_verdict_from_summary({'primary_metric':'tests_pass','itt':{'tests_pass':{'point':0.5,'ci_low':0.2,'ci_high':0.8,'n_tasks':2,'clustered':True}},'validity':{'off_contaminated':0}})['label'])"`
 → prints `verified`.
 
 ### Step 2: Add the pure renderer `build_gallery_html`
@@ -430,12 +430,12 @@ def build_gallery_html(entries: list[dict]) -> str:
 (You may inline `_gallery_card` / `_gallery_unsupported_card` as small helpers or
 fold them into the loop — your call, but keep functions short and lines < 100.)
 
-**Verify**: `python3 -c "import skill_ab_harness as h; html=h.build_gallery_html([]); print('self-report' if 'self-reported' in html else 'MISSING')"`
+**Verify**: `python3 -c "import skills_test as h; html=h.build_gallery_html([]); print('self-report' if 'self-reported' in html else 'MISSING')"`
 → prints `self-report`.
 
 ### Step 3: Add the prototype tests (render an index from 2 fixtures)
 
-In `test_skill_ab_harness.py`, add tests that build TWO real `summary.json` dicts
+In `test_skills_test.py`, add tests that build TWO real `summary.json` dicts
 via the existing path and render the gallery. Generate the fixtures with
 `h.summary_dict(...)` so no data file is committed and the test stays deterministic
 and offline. Model on `test_manifest_and_summary_shape` (line 344). Cover:
@@ -468,17 +468,17 @@ def test_gallery_skips_unsupported_schema():
     assert "unsupported schema" in out.lower()
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → ends with `N passed` where N is the
+**Verify**: `python3 test_skills_test.py` → ends with `N passed` where N is the
 prior count (53) plus the number of tests you added (≥ 2), exit 0.
 
 ### Step 4: Lint and full-suite gate
 
-**Verify**: `uvx ruff check skill_ab_harness.py` → `All checks passed!`, exit 0;
-and `python3 test_skill_ab_harness.py` → all pass, exit 0.
+**Verify**: `uvx ruff check skills_test.py` → `All checks passed!`, exit 0;
+and `python3 test_skills_test.py` → all pass, exit 0.
 
 ## Test plan
 
-- New tests in `test_skill_ab_harness.py`:
+- New tests in `test_skills_test.py`:
   - `test_gallery_renders_two_summaries` — happy path, two distinct skills both in
     the page, disclaimer present, a badge SVG present.
   - `test_gallery_skips_unsupported_schema` — forged/old `schema_version` → visible
@@ -486,26 +486,26 @@ and `python3 test_skill_ab_harness.py` → all pass, exit 0.
   - (Optional) `test_gallery_verdict_none_when_no_estimate` — `itt` missing the
     primary metric → helper returns `None`, renderer still produces a card.
 - Structural pattern to follow: `test_manifest_and_summary_shape`
-  (`test_skill_ab_harness.py:344`) for building summaries; `_two_task_results`
+  (`test_skills_test.py:344`) for building summaries; `_two_task_results`
   (line 334) and `_cfg` (line 18) as fixtures.
-- Verification: `python3 test_skill_ab_harness.py` → all pass including the new
-  tests; `uvx ruff check skill_ab_harness.py` clean.
+- Verification: `python3 test_skills_test.py` → all pass including the new
+  tests; `uvx ruff check skills_test.py` clean.
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0 and prints `N passed` with N ≥ 55
+- [ ] `python3 test_skills_test.py` exits 0 and prints `N passed` with N ≥ 55
       (53 existing + ≥ 2 new), including the new `test_gallery_*` tests.
-- [ ] `uvx ruff check skill_ab_harness.py` prints `All checks passed!`, exit 0.
-- [ ] `python3 -c "import skill_ab_harness as h; print(len(h.build_gallery_html([])))"`
+- [ ] `uvx ruff check skills_test.py` prints `All checks passed!`, exit 0.
+- [ ] `python3 -c "import skills_test as h; print(len(h.build_gallery_html([])))"`
       prints a positive integer (the empty gallery still renders).
-- [ ] `grep -n "def build_gallery_html" skill_ab_harness.py` and
-      `grep -n "def _gallery_verdict_from_summary" skill_ab_harness.py` each return
+- [ ] `grep -n "def build_gallery_html" skills_test.py` and
+      `grep -n "def _gallery_verdict_from_summary" skills_test.py` each return
       exactly one match.
-- [ ] `grep -n "add_parser(\"gallery\"" skill_ab_harness.py` returns NO matches (no
+- [ ] `grep -n "add_parser(\"gallery\"" skills_test.py` returns NO matches (no
       CLI subcommand was wired — the spike defers it).
-- [ ] No files outside `skill_ab_harness.py` and `test_skill_ab_harness.py` are
+- [ ] No files outside `skills_test.py` and `test_skills_test.py` are
       modified (`results.schema.json`, `main(...)`, `build_html_report`, and
       `_HTML_STYLE`/`_HTML_SCRIPT` text are unchanged).
 - [ ] Your hand-off summary records: the `gallery` command surface (a), the trust/

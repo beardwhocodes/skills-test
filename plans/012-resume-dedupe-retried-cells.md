@@ -8,7 +8,7 @@
 >
 > **Drift check (run first)**: this repo is NOT git-initialized, so there is no
 > SHA to diff against. Before editing, compare the "Current state" excerpts
-> below to the live code in `skill_ab_harness.py` at the cited line numbers. If
+> below to the live code in `skills_test.py` at the cited line numbers. If
 > the live code no longer matches an excerpt (line numbers may have shifted —
 > match on the code text, not the number), treat it as a STOP condition.
 
@@ -48,11 +48,11 @@ counts truthful and bounds the JSONL file.
 
 ## Current state
 
-Single module under change: `skill_ab_harness.py` (~3715 lines, stdlib-only,
-Python >=3.11). Tests: `test_skill_ab_harness.py` (custom stdlib runner, NOT
+Single module under change: `skills_test.py` (~3715 lines, stdlib-only,
+Python >=3.11). Tests: `test_skills_test.py` (custom stdlib runner, NOT
 pytest). The repo is not git-initialized; edit in place.
 
-### The bug — `run_experiment` resume + return (`skill_ab_harness.py:1018-1061`)
+### The bug — `run_experiment` resume + return (`skills_test.py:1018-1061`)
 
 ```python
     prior: list[RunResult] = []
@@ -84,10 +84,10 @@ Jobs are built only for cells **not** in `done`, so a failed cell re-runs:
 
 `prior` contains the failed attempt; `fresh` contains its retry; `prior + fresh`
 returns both. There is no dedup. (Persistence inside `run_and_persist` appends
-to `results_path` — `skill_ab_harness.py:1046` `with results_path.open("a")` —
+to `results_path` — `skills_test.py:1046` `with results_path.open("a")` —
 which on resume adds to the existing file rather than replacing it.)
 
-### Where the duplicate inflates a denominator (`skill_ab_harness.py:1269-1272`)
+### Where the duplicate inflates a denominator (`skills_test.py:1269-1272`)
 
 ```python
     for arm in experiment_arms(cfg):
@@ -104,13 +104,13 @@ is correct) → the displayed ratio `val/tot` is wrong. The markdown report also
 prints raw `len(results)`:
 
 ```python
-        f"| total runs: {len(results)}",        # skill_ab_harness.py:1253
+        f"| total runs: {len(results)}",        # skills_test.py:1253
 ```
 
 and the HTML report derives `nRuns` the same way (`var nRuns = (D.runs ||
-[]).length;` at `skill_ab_harness.py:2300`, fed by the full results list).
+[]).length;` at `skills_test.py:2300`, fed by the full results list).
 
-### Why the stats are safe — `_grouped` filters before counting (`skill_ab_harness.py:1088-1093`)
+### Why the stats are safe — `_grouped` filters before counting (`skills_test.py:1088-1093`)
 
 ```python
     g: dict[str, list[float]] = {}
@@ -121,10 +121,10 @@ and the HTML report derives `nRuns` the same way (`var nRuns = (D.runs ||
     return g
 ```
 
-`estimate_diff` (`skill_ab_harness.py:1180`) consumes `_grouped`, so a
+`estimate_diff` (`skills_test.py:1180`) consumes `_grouped`, so a
 duplicated non-valid row never reaches the bootstrap/permutation math.
 
-### Validity properties that make a duplicate always non-valid (`skill_ab_harness.py:274-293`)
+### Validity properties that make a duplicate always non-valid (`skills_test.py:274-293`)
 
 ```python
     @property
@@ -140,7 +140,7 @@ A cell is only retried when it is **not** in `done`, and `done` is
 (or is contaminated — see note in Step 1) → `itt_valid=False`. The duplicate is
 always invalid, which is exactly why the stats are unaffected.
 
-### Persistence helpers you must keep compatible (`skill_ab_harness.py:295-333`, `1726-1736`)
+### Persistence helpers you must keep compatible (`skills_test.py:295-333`, `1726-1736`)
 
 `RunResult.to_dict` serializes one row; `from_dict` rebuilds it and **recomputes**
 derived keys (`contaminated`/`itt_valid`/`pp_valid`) rather than reading them:
@@ -173,11 +173,11 @@ def load_results(path: Path) -> list[RunResult]:
 - Comments explain **why**, not what.
 - stdlib-only is a hard rule. Do NOT add any dependency (no numpy/pandas/pytest).
 - Line length < 100 columns (`uvx ruff check`, configured line-length 100).
-- Tests live in `test_skill_ab_harness.py` and are discovered by a custom runner
+- Tests live in `test_skills_test.py` and are discovered by a custom runner
   that calls every top-level `test_*` function **with no arguments** (see
-  `_run_all` at `test_skill_ab_harness.py:728-734`). A new test must be callable
+  `_run_all` at `test_skills_test.py:728-734`). A new test must be callable
   as `test_x()`. Build `RunResult`s with the existing helper `_rr(arm, activated,
-  agent_ok=True, **kw)` at `test_skill_ab_harness.py:41-45` (it sets `task_id="t"`,
+  agent_ok=True, **kw)` at `test_skills_test.py:41-45` (it sets `task_id="t"`,
   `run_index=0`, and `arm_skill_name` automatically) — pass `task_id=`,
   `run_index=`, `agent_ok=` as kwargs to vary the cell key.
 
@@ -185,9 +185,9 @@ def load_results(path: Path) -> list[RunResult]:
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Tests   | `python3 test_skill_ab_harness.py` | ends with `54 passed` (53 today + your 1 new); exit 0 |
-| Lint    | `uvx ruff check skill_ab_harness.py` | `All checks passed!`; exit 0 |
-| Lint test file | `uvx ruff check test_skill_ab_harness.py` | `All checks passed!`; exit 0 |
+| Tests   | `python3 test_skills_test.py` | ends with `54 passed` (53 today + your 1 new); exit 0 |
+| Lint    | `uvx ruff check skills_test.py` | `All checks passed!`; exit 0 |
+| Lint test file | `uvx ruff check test_skills_test.py` | `All checks passed!`; exit 0 |
 
 (Run from the repo root `/Users/copyjosh/Code/skills-test`. The test runner is
 NOT pytest; do not invoke `pytest`.)
@@ -195,9 +195,9 @@ NOT pytest; do not invoke `pytest`.)
 ## Scope
 
 **In scope** (the only files you should modify):
-- `skill_ab_harness.py` — add `_dedupe_runs`; call it at the end of
+- `skills_test.py` — add `_dedupe_runs`; call it at the end of
   `run_experiment`; optionally rewrite `results.jsonl`.
-- `test_skill_ab_harness.py` — add one unit test for `_dedupe_runs`.
+- `test_skills_test.py` — add one unit test for `_dedupe_runs`.
 
 **Out of scope** (do NOT touch, even though they look related):
 - `plans/README.md` — the reviewer maintains the index.
@@ -222,7 +222,7 @@ not branch, do not commit, do not open a PR.
 ### Step 1: Add a pure `_dedupe_runs(prior, fresh)` helper and use it in the return
 
 Add a module-level function near `run_experiment` (e.g. directly above it, after
-the `_SKIPPED_ERR = ...` line at `skill_ab_harness.py:1002`). Target shape:
+the `_SKIPPED_ERR = ...` line at `skills_test.py:1002`). Target shape:
 
 ```python
 def _dedupe_runs(prior: list[RunResult], fresh: list[RunResult]) -> list[RunResult]:
@@ -242,7 +242,7 @@ def _dedupe_runs(prior: list[RunResult], fresh: list[RunResult]) -> list[RunResu
 its prior position but holds the fresh value — that is the "stable order"
 guarantee the test checks.)
 
-Then replace the return in `run_experiment` (`skill_ab_harness.py:1061`):
+Then replace the return in `run_experiment` (`skills_test.py:1061`):
 
 ```python
     return prior + fresh, pf
@@ -261,9 +261,9 @@ contaminated — was still re-run; either way the superseded prior record is
 non-`itt_valid`. You do not need to special-case this; last-write-wins keyed on
 the cell triple is correct regardless of why the cell was retried.
 
-**Verify**: `python3 test_skill_ab_harness.py` still ends with `53 passed`
+**Verify**: `python3 test_skills_test.py` still ends with `53 passed`
 (no behavior change yet for existing tests) and `uvx ruff check
-skill_ab_harness.py` prints `All checks passed!`.
+skills_test.py` prints `All checks passed!`.
 
 ### Step 2 (recommended): Rewrite `results.jsonl` once at the end so disk matches memory
 
@@ -296,14 +296,14 @@ evidence. If you judge that losing the superseded line from `results.jsonl` is
 unacceptable for this repo, implement Step 1 only and skip Step 2 — Step 1 alone
 fixes the denominators; Step 2 additionally bounds disk growth.
 
-**Verify**: `python3 test_skill_ab_harness.py` still passes; `uvx ruff check
-skill_ab_harness.py` clean.
+**Verify**: `python3 test_skills_test.py` still passes; `uvx ruff check
+skills_test.py` clean.
 
 ### Step 3: Add the unit test for `_dedupe_runs`
 
-Add one top-level `test_*` function to `test_skill_ab_harness.py` (place it near
+Add one top-level `test_*` function to `test_skills_test.py` (place it near
 the other persistence/round-trip tests, e.g. after
-`test_runresult_from_dict_round_trips` at `test_skill_ab_harness.py:419-423`).
+`test_runresult_from_dict_round_trips` at `test_skills_test.py:419-423`).
 It must be callable with no arguments. Cover all four required cases:
 
 ```python
@@ -331,45 +331,45 @@ def test_dedupe_runs_collapses_retried_cells():
 (`_rr` already sets `task_id="t"`; vary `run_index`/`arm`/`agent_ok` to control
 the cell key. `arm_skill_name` is set by `_rr` based on the arm — fine here.)
 
-**Verify**: `python3 test_skill_ab_harness.py` ends with `54 passed`; the line
+**Verify**: `python3 test_skills_test.py` ends with `54 passed`; the line
 `ok  test_dedupe_runs_collapses_retried_cells` appears in the output.
 
 ## Test plan
 
 - New test: `test_dedupe_runs_collapses_retried_cells` in
-  `test_skill_ab_harness.py`, covering (1) failed→succeeded collapses to the
+  `test_skills_test.py`, covering (1) failed→succeeded collapses to the
   success, (2) failed→failed collapses to one, (3) an untouched successful cell
   passes through, (4) stable ordering.
 - Structural pattern to model after: `test_runresult_from_dict_round_trips`
-  (`test_skill_ab_harness.py:419-423`) for how it builds `RunResult`s via `_rr`
+  (`test_skills_test.py:419-423`) for how it builds `RunResult`s via `_rr`
   and asserts on plain attributes — no async, no `claude`, no `git`.
 - Do NOT write an async/`run_experiment` integration test — it would require
   `claude`/`git` and the custom runner cannot drive coroutines. The pure helper
   test is sufficient because the fix is a single pure transform applied at the
   return.
-- Verification: `python3 test_skill_ab_harness.py` → `54 passed` (53 existing + 1
-  new); `uvx ruff check skill_ab_harness.py` and `uvx ruff check
-  test_skill_ab_harness.py` → `All checks passed!`.
+- Verification: `python3 test_skills_test.py` → `54 passed` (53 existing + 1
+  new); `uvx ruff check skills_test.py` and `uvx ruff check
+  test_skills_test.py` → `All checks passed!`.
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0 and prints `54 passed`, including
+- [ ] `python3 test_skills_test.py` exits 0 and prints `54 passed`, including
       the new `test_dedupe_runs_collapses_retried_cells`.
-- [ ] `uvx ruff check skill_ab_harness.py` exits 0 (`All checks passed!`).
-- [ ] `uvx ruff check test_skill_ab_harness.py` exits 0.
-- [ ] `grep -n "return prior + fresh" skill_ab_harness.py` returns NO matches
+- [ ] `uvx ruff check skills_test.py` exits 0 (`All checks passed!`).
+- [ ] `uvx ruff check test_skills_test.py` exits 0.
+- [ ] `grep -n "return prior + fresh" skills_test.py` returns NO matches
       (the un-deduped return is gone).
-- [ ] `grep -n "def _dedupe_runs" skill_ab_harness.py` returns exactly one match.
-- [ ] No files outside `skill_ab_harness.py` and `test_skill_ab_harness.py` are
+- [ ] `grep -n "def _dedupe_runs" skills_test.py` returns exactly one match.
+- [ ] No files outside `skills_test.py` and `test_skills_test.py` are
       modified (in particular `plans/README.md` is untouched).
 
 ## STOP conditions
 
 Stop and report back (do not improvise) if:
 
-- The code at `skill_ab_harness.py:1018-1061` no longer matches the "Current
+- The code at `skills_test.py:1018-1061` no longer matches the "Current
   state" excerpts (the resume block or the `return prior + fresh` line has
   drifted) — the dedup point may have moved.
 - You find a code path where two `RunResult`s legitimately share the same

@@ -131,8 +131,8 @@ The harness runs N arms, each defined by "install this skill (or nothing)".
       "pending". It is NOT read by `_build_estimate_config` (run count is unaffected).
 
 ## Tests
-`python3 test_skill_ab_harness.py` (stdlib-only; no `claude`/`git` needed) covers
-the statistics and the activation detector. `python3 test_skill_ab_server.py` covers
+`python3 test_skills_test.py` (stdlib-only; no `claude`/`git` needed) covers
+the statistics and the activation detector. `python3 test_skills_test_server.py` covers
 the local-app server (token auth, Host/Origin, runner_* refusal, demo run, estimate).
 
 ## Safety
@@ -141,7 +141,7 @@ the local-app server (token auth, Host/Origin, runner_* refusal, demo run, estim
 
 ## Run
 Now a real CLI (stdlib only; needs `git` + `claude` on PATH). `python
-skill_ab_harness.py <cmd>` or `skills-test <cmd>` after install:
+skills_test.py <cmd>` or `skills-test <cmd>` after install:
 - `demo` — offline, free example report (zero claude calls)
 - `init` / `run` / `report` / `plan` / `ci` (see README + `plans/`)
 

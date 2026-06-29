@@ -30,7 +30,7 @@ lets an author defend a NULL result instead of being told it's underpowered.
 
 ## Current state
 
-- `class ExperimentConfig` (`skill_ab_harness.py:105`) — no `cost_ceiling_usd`.
+- `class ExperimentConfig` (`skills_test.py:105`) — no `cost_ceiling_usd`.
 - `run_experiment(cfg, tasks, scorers=None)` (`:725`) fires all
   `tasks × 2 × k` jobs via `asyncio.gather(*jobs, return_exceptions=True)` (~line 755),
   each through `run_and_persist` (~line 737). No budget guard.
@@ -47,15 +47,15 @@ lets an author defend a NULL result instead of being told it's underpowered.
 
 | Purpose | Command | Expected |
 |---|---|---|
-| Compile | `python3 -m py_compile skill_ab_harness.py test_skill_ab_harness.py` | exit 0 |
-| Tests | `python3 test_skill_ab_harness.py` | `N passed` |
+| Compile | `python3 -m py_compile skills_test.py test_skills_test.py` | exit 0 |
+| Tests | `python3 test_skills_test.py` | `N passed` |
 | Line length | plan-001 Step-5 snippet | `OK` |
 
 ## Scope
 
-**In scope:** `skill_ab_harness.py` (add `cost_ceiling_usd` field; `estimate_cost`;
+**In scope:** `skills_test.py` (add `cost_ceiling_usd` field; `estimate_cost`;
 `minimum_detectable_effect`; a budget guard in the run loop; a `plan` subcommand);
-`test_skill_ab_harness.py` (cost-math + MDE tests).
+`test_skills_test.py` (cost-math + MDE tests).
 
 **Out of scope:** the scorers, the worktree/agent mechanics, the report format.
 
@@ -68,7 +68,7 @@ In `ExperimentConfig`, near the other knobs:
     cost_ceiling_usd: float | None = None   # abort remaining runs once total cost crosses this
     cost_per_run_usd: float | None = None   # override the dry-run cost prior (else measured)
 ```
-**Verify**: `python3 -c "import skill_ab_harness as h; from pathlib import Path; \
+**Verify**: `python3 -c "import skills_test as h; from pathlib import Path; \
 print(h.ExperimentConfig(repo_path=Path('/r'),base_ref='m',skill_src=Path('/s'),skill_name='k').cost_ceiling_usd)"` → `None`.
 
 ### Step 2: Cost/time projection
@@ -168,7 +168,7 @@ print a human line ("projected: 20 runs, ~$6.20, ~12 min wall, ceiling $X"); if
 2 tasks you can detect ≥ +12% with 80% power"). If neither cost nor baseline is
 known, print guidance to run one pilot or pass the flags. **`plan` spends nothing.**
 
-**Verify**: `python3 skill_ab_harness.py plan -c <cfg> --cost-per-run 0.31
+**Verify**: `python3 skills_test.py plan -c <cfg> --cost-per-run 0.31
 --seconds-per-run 40` prints a projection line with `$6.20` for a 2-task k=5 config.
 
 ### Step 6: Tests
@@ -197,7 +197,7 @@ def test_mde_monotone():
     assert small is not None and (big is None or big >= small)
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → `N passed`; line-length `OK`.
+**Verify**: `python3 test_skills_test.py` → `N passed`; line-length `OK`.
 
 ## Test plan
 

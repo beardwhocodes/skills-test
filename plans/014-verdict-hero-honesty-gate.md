@@ -9,7 +9,7 @@
 >
 > **Drift check (run first)**: this repo is **not git-initialized**, so there is
 > no SHA to diff against. Before editing, compare the "Current state" excerpts
-> below to the live code in `skill_ab_harness.py` (open the cited line ranges and
+> below to the live code in `skills_test.py` (open the cited line ranges and
 > confirm the quoted lines still match). On any mismatch, treat it as a STOP
 > condition.
 
@@ -47,18 +47,18 @@ a verdict" lede text is preserved.
 
 ## Current state
 
-Single module under change: `/Users/copyjosh/Code/skills-test/skill_ab_harness.py`
+Single module under change: `/Users/copyjosh/Code/skills-test/skills_test.py`
 (~3715 lines). All the report UI is Python string literals near the bottom:
 `_HTML_STYLE` (a triple-quoted CSS str) and `_HTML_SCRIPT` (a **raw** triple-quoted
 `r"""..."""` block of **ES5 vanilla JS** — `var`/`function`, no template literals,
 no backticks, no arrow functions; every line stays **< 100 columns**). The JS runs
-in the browser against a `window.SKILL_AB` JSON blob; the stdlib test runner cannot
+in the browser against a `window.SKILLS_TEST` JSON blob; the stdlib test runner cannot
 execute it, so tests assert on substrings of the produced document.
 
 ### The two contradicting paths
 
 **(1) The pill** comes from `badge_verdict` (returns `"inconclusive"` unless
-clustered AND `n_tasks >= 2` AND `contaminated == 0`) — `skill_ab_harness.py:1768`:
+clustered AND `n_tasks >= 2` AND `contaminated == 0`) — `skills_test.py:1768`:
 
 ```python
 def badge_verdict(est: dict, direction: int, n_tasks: int, clustered: bool,
@@ -74,7 +74,7 @@ def badge_verdict(est: dict, direction: int, n_tasks: int, clustered: bool,
 ```
 
 That label is mapped to the pill text/tone by `_verdict_blob`
-(`skill_ab_harness.py:3013`), which is what the hero pill renders:
+(`skills_test.py:3013`), which is what the hero pill renders:
 
 ```python
 def _verdict_blob(verdict: dict | None) -> dict:
@@ -87,7 +87,7 @@ def _verdict_blob(verdict: dict | None) -> dict:
 ```
 
 **(2) The headline** comes from `leadSignal`/`leadIn`, which ignore trustworthiness
-and fire whenever a CI does not straddle 0 — `skill_ab_harness.py:2323` (inside the
+and fire whenever a CI does not straddle 0 — `skills_test.py:2323` (inside the
 `_HTML_SCRIPT` JS string):
 
 ```javascript
@@ -113,15 +113,15 @@ and fire whenever a CI does not straddle 0 — `skill_ab_harness.py:2323` (insid
 ```
 
 `straddles` is `function straddles(c){ return c.lo <= 0 && c.hi >= 0; }`
-(`skill_ab_harness.py:2273`). `VERD` is read once near the top of the script —
-`skill_ab_harness.py:2205`:
+(`skills_test.py:2273`). `VERD` is read once near the top of the script —
+`skills_test.py:2205`:
 
 ```javascript
   var VERD = D.verdict || {label:"inconclusive", tone:"flat",
     text:"Inconclusive at this scale"};
 ```
 
-The **hero()** function builds the headline — `skill_ab_harness.py:2417`. This is
+The **hero()** function builds the headline — `skills_test.py:2417`. This is
 the block you will edit:
 
 ```javascript
@@ -158,7 +158,7 @@ the block you will edit:
 ```
 
 Further down, `hero()` already builds an honest `smoke` lede (keep it intact) —
-`skill_ab_harness.py:2458`:
+`skills_test.py:2458`:
 
 ```javascript
     var smoke = nTasks < 2
@@ -167,7 +167,7 @@ Further down, `hero()` already builds an honest `smoke` lede (keep it intact) �
       : "";
 ```
 
-…and emits the headline + lede here — `skill_ab_harness.py:2499`:
+…and emits the headline + lede here — `skills_test.py:2499`:
 
 ```javascript
       + "<h1>" + headline + "</h1>"
@@ -175,12 +175,12 @@ Further down, `hero()` already builds an honest `smoke` lede (keep it intact) �
 ```
 
 `nTasks` is in scope: `var nTasks = (D.tasks || []).length;`
-(`skill_ab_harness.py:2299`). `VERD.label` is the canonical "is this trustworthy"
+(`skills_test.py:2299`). `VERD.label` is the canonical "is this trustworthy"
 signal and is already in scope. There is **no** contamination count exposed to the
 JS blob today — `data["meta"]` (built in `build_html_report`,
-`skill_ab_harness.py:3109`) carries `harness/cli/model/repo/.../primaryPair` but not
+`skills_test.py:3109`) carries `harness/cli/model/repo/.../primaryPair` but not
 `total_contam`; `total_contam` is computed server-side at
-`skill_ab_harness.py:3089` (`total_contam = sum(1 for r in results if r.contaminated)`).
+`skills_test.py:3089` (`total_contam = sum(1 for r in results if r.contaminated)`).
 
 ### Why a single-task run trips this (the bug repro)
 
@@ -207,8 +207,8 @@ comparison `tests_pass` CI `[1.0, 1.0]`).
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Tests   | `python3 test_skill_ab_harness.py` | prints `ok  <name>` per test, ends `N passed`, exit 0 |
-| Lint    | `uvx ruff check skill_ab_harness.py` | `All checks passed!`, exit 0 |
+| Tests   | `python3 test_skills_test.py` | prints `ok  <name>` per test, ends `N passed`, exit 0 |
+| Lint    | `uvx ruff check skills_test.py` | `All checks passed!`, exit 0 |
 
 Run both from the repo root `/Users/copyjosh/Code/skills-test`. The test runner is
 a **custom stdlib runner, NOT pytest** — do not invoke pytest, do not add any
@@ -220,10 +220,10 @@ There are currently **53 tests** passing in well under 1 second with no
 ## Scope
 
 **In scope** (the only file you modify):
-- `/Users/copyjosh/Code/skills-test/skill_ab_harness.py` — the `hero()` JS in
+- `/Users/copyjosh/Code/skills-test/skills_test.py` — the `hero()` JS in
   `_HTML_SCRIPT`; optionally `_verdict_blob` and the `data["meta"]` dict if you do
   the optional enhancement in Step 2.
-- `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py` — add one test.
+- `/Users/copyjosh/Code/skills-test/test_skills_test.py` — add one test.
 
 **Out of scope** (do NOT touch, even though they look related):
 - `badge_verdict`, `cluster_bootstrap_ci`, `estimate_diff`, `leadSignal`/`leadIn`,
@@ -244,7 +244,7 @@ make — just edit the files in place and leave them saved. Do not run `git`.
 
 ### Step 1: Gate the assertive headline on `VERD.label`
 
-In `hero()` (`skill_ab_harness.py:2417`), make the headline honest when the verdict
+In `hero()` (`skills_test.py:2417`), make the headline honest when the verdict
 is not trustworthy. The cleanest minimal change: compute a boolean once, and when
 the verdict is inconclusive, either (a) skip the assertive headline entirely in
 favor of the neutral copy already used in the `else` branch, or (b) keep the number
@@ -294,17 +294,17 @@ Notes:
 - Stay < 100 cols on every line. Use `esc(...)` for `lead.c.a` / `lead.c.b` /
   metric label (arm names are user-derived).
 
-**Verify**: `uvx ruff check skill_ab_harness.py` → `All checks passed!`
+**Verify**: `uvx ruff check skills_test.py` → `All checks passed!`
 (ruff won't parse the JS, but it confirms you didn't break the Python string/quotes
 — an unterminated triple-quote would surface as a syntax error here). Then
-`python3 test_skill_ab_harness.py` → still ends `53 passed` (no behavior the
+`python3 test_skills_test.py` → still ends `53 passed` (no behavior the
 existing tests assert on should change yet).
 
 ### Step 2 (OPTIONAL — only if trivially clean): name *why* it's inconclusive
 
 If and only if you can do it without touching the estimator, expose the
 contamination count so the lede can distinguish "underpowered" (`n_tasks < 2`) from
-"contaminated". In `build_html_report` (`skill_ab_harness.py:3109`), add
+"contaminated". In `build_html_report` (`skills_test.py:3109`), add
 `"totalContam": total_contam,` to the `data["meta"]` dict (`total_contam` is already
 computed at line 3089). Then in the suggestive branch you may append, in ES5:
 
@@ -318,14 +318,14 @@ computed at line 3089). Then in the suggestive branch you may append, in ES5:
 If this adds any awkwardness or risks the < 100-col rule, **skip Step 2 entirely** —
 it is not required for Done. Do not over-engineer.
 
-**Verify**: `python3 test_skill_ab_harness.py` → still `53 passed`.
+**Verify**: `python3 test_skills_test.py` → still `53 passed`.
 
 ### Step 3: Add a regression test
 
-Add one test to `test_skill_ab_harness.py`, in the "HTML report" section near
-`test_build_html_report_renders_and_escapes` (`test_skill_ab_harness.py:426`). Model
+Add one test to `test_skills_test.py`, in the "HTML report" section near
+`test_build_html_report_renders_and_escapes` (`test_skills_test.py:426`). Model
 its construction on `test_single_task_badge_warning`
-(`test_skill_ab_harness.py:714`) for the single-task setup and on
+(`test_skills_test.py:714`) for the single-task setup and on
 `test_build_html_report_renders_and_escapes` for calling `build_html_report`.
 
 The test builds a **1-task** run set whose primary CI excludes 0, asserts the
@@ -349,8 +349,8 @@ def test_inconclusive_verdict_does_not_assert_settled_headline():
     man = h.experiment_manifest(cfg, timestamp=1.0, offline=True)
     doc = h.build_html_report(res, h.Preflight(), cfg, man)
 
-    m = re.search(r"window\.SKILL_AB=(\{.*?\});\n", doc, re.S)
-    assert m, "embedded SKILL_AB blob not found"
+    m = re.search(r"window\.SKILLS_TEST=(\{.*?\});\n", doc, re.S)
+    assert m, "embedded SKILLS_TEST blob not found"
     data = json.loads(m.group(1))
     assert data["verdict"]["label"] == "inconclusive"
     # primary comparison CI clears 0 -> the bug condition is actually present
@@ -366,13 +366,13 @@ def test_inconclusive_verdict_does_not_assert_settled_headline():
 
 Notes for the executor:
 - `re` and `json` must be importable in the test module. `random` and `Path` are
-  imported at the top; `json` is imported at `test_skill_ab_harness.py:725` (bottom,
+  imported at the top; `json` is imported at `test_skills_test.py:725` (bottom,
   with `# noqa: E402`) and `re` may not be imported yet. Put `import re` and (if
   missing) `import json` at the **top** of the file with the other imports
-  (`test_skill_ab_harness.py:9-15`) to avoid an `E402`/`NameError`; if `json` is
+  (`test_skills_test.py:9-15`) to avoid an `E402`/`NameError`; if `json` is
   already imported at the bottom, leaving it there is fine since the runner imports
   the whole module before running any test. Prefer adding `import re` up top.
-- `_cfg` and `_rr` are existing helpers (`test_skill_ab_harness.py:18` and `:41`).
+- `_cfg` and `_rr` are existing helpers (`test_skills_test.py:18` and `:41`).
   `_rr` sets `arm_skill_name` correctly per arm; you only override `task_id`,
   `run_index`, `cost_usd`.
 - The assertion `"Suggestive only" in doc` is a **source-presence** check: the JS
@@ -384,39 +384,39 @@ Notes for the executor:
 - If you changed the neutral `else` headline string in Step 1, that branch is not
   exercised by this data; no assertion needed on it.
 
-**Verify**: `python3 test_skill_ab_harness.py` → ends `54 passed`, including
+**Verify**: `python3 test_skills_test.py` → ends `54 passed`, including
 `ok  test_inconclusive_verdict_does_not_assert_settled_headline`.
 
 ## Test plan
 
-- New test in `test_skill_ab_harness.py`:
+- New test in `test_skills_test.py`:
   `test_inconclusive_verdict_does_not_assert_settled_headline` (above) — the exact
   regression: single task, primary CI excludes 0, verdict `inconclusive`, headline
   must carry the suggestive marker and the honest pill text.
 - Structural pattern to follow: `test_build_html_report_renders_and_escapes`
-  (`test_skill_ab_harness.py:426`) for the `build_html_report` call + doc-substring
+  (`test_skills_test.py:426`) for the `build_html_report` call + doc-substring
   assertions; `test_single_task_badge_warning` (`:714`) for the single-task setup.
 - No existing test should change behavior; all must still pass.
-- Verification: `python3 test_skill_ab_harness.py` → `54 passed`.
+- Verification: `python3 test_skills_test.py` → `54 passed`.
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0 and prints `54 passed` (was 53);
+- [ ] `python3 test_skills_test.py` exits 0 and prints `54 passed` (was 53);
       `ok  test_inconclusive_verdict_does_not_assert_settled_headline` appears.
-- [ ] `uvx ruff check skill_ab_harness.py` prints `All checks passed!` (exit 0).
-- [ ] `uvx ruff check test_skill_ab_harness.py` is clean (no new E402/F401 from the
+- [ ] `uvx ruff check skills_test.py` prints `All checks passed!` (exit 0).
+- [ ] `uvx ruff check test_skills_test.py` is clean (no new E402/F401 from the
       added imports).
-- [ ] `grep -n "Suggestive only" skill_ab_harness.py` returns exactly one match
+- [ ] `grep -n "Suggestive only" skills_test.py` returns exactly one match
       (inside `_HTML_SCRIPT`'s `hero()`).
-- [ ] `grep -n "&& settled" skill_ab_harness.py` (or your chosen guard expression)
+- [ ] `grep -n "&& settled" skills_test.py` (or your chosen guard expression)
       shows the assertive headline branch is now gated on the verdict label.
 - [ ] No line you added to `_HTML_SCRIPT` exceeds 99 columns
-      (`awk 'length>99{print FILENAME":"NR": "length}' skill_ab_harness.py` prints
+      (`awk 'length>99{print FILENAME":"NR": "length}' skills_test.py` prints
       nothing — if it prints pre-existing long lines you did not add, those are out
       of scope; confirm none are in your edited region).
-- [ ] Only `skill_ab_harness.py` and `test_skill_ab_harness.py` were modified.
+- [ ] Only `skills_test.py` and `test_skills_test.py` were modified.
 - [ ] No new third-party import anywhere
       (`grep -nE "^import (numpy|pandas|pytest|jinja)" *.py` returns nothing).
 

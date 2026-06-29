@@ -8,7 +8,7 @@
 >
 > **Drift check (run first)**: this repo is NOT git-initialized, so there is no
 > SHA to diff against. Before editing, compare the "Current state" excerpts
-> below to the live code in `skill_ab_harness.py`. If any excerpt no longer
+> below to the live code in `skills_test.py`. If any excerpt no longer
 > matches the file (line numbers may shift slightly — match on the code text,
 > not the line number), treat it as a STOP condition.
 
@@ -39,12 +39,12 @@ scorers; this only quantifies its noise instead of hiding it.
 
 ## Current state
 
-Single module under change: `/Users/copyjosh/Code/skills-test/skill_ab_harness.py`
-(~3715 lines). Tests: `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py`
+Single module under change: `/Users/copyjosh/Code/skills-test/skills_test.py`
+(~3715 lines). Tests: `/Users/copyjosh/Code/skills-test/test_skills_test.py`
 (custom stdlib runner — every top-level `def test_*` is auto-discovered and run;
 53 pass today).
 
-### The data unit being aggregated — `JudgeComparison` (`skill_ab_harness.py:1351-1360`)
+### The data unit being aggregated — `JudgeComparison` (`skills_test.py:1351-1360`)
 
 ```python
 @dataclass
@@ -63,7 +63,7 @@ Each comparison is one judge vote. `winner_arm` equals the pair's `a_label`,
 its `b_label`, `"tie"`, or `None` (unparseable). Both orderings of the same
 diff-pair are two separate rows.
 
-### What `aggregate_judge` returns today — NO interval (`skill_ab_harness.py:1527-1556`)
+### What `aggregate_judge` returns today — NO interval (`skills_test.py:1527-1556`)
 
 ```python
 def aggregate_judge(comparisons: list[JudgeComparison]) -> dict:
@@ -100,7 +100,7 @@ def aggregate_judge(comparisons: list[JudgeComparison]) -> dict:
 
 Note `win_rate_a` is `float("nan")` when `decisive == 0` (all ties/failed).
 
-### The CI structure to MIRROR — `cluster_bootstrap_ci` (`skill_ab_harness.py:1103-1135`)
+### The CI structure to MIRROR — `cluster_bootstrap_ci` (`skills_test.py:1103-1135`)
 
 ```python
 def cluster_bootstrap_ci(on: dict[str, list[float]], off: dict[str, list[float]],
@@ -143,7 +143,7 @@ Copy the percentile indexing (`int((alpha / 2) * len(...))` and the `min(len-1,
 convention. `cfg.bootstrap_iters` (default 10_000; tests use 2000) and
 `cfg.bootstrap_alpha` (default 0.05) are the standard knobs.
 
-### The Markdown report — prints win rate + consistency, NO CI (`skill_ab_harness.py:1559-1604`)
+### The Markdown report — prints win rate + consistency, NO CI (`skills_test.py:1559-1604`)
 
 ```python
 def build_judge_report(comparisons: list[JudgeComparison], cfg: ExperimentConfig,
@@ -179,7 +179,7 @@ The `seed: int = 0` parameter already exists on this function but is currently
 **unused** — wiring it to seed the judge CI gives it a purpose. `wr == wr` is the
 NaN check (NaN is the only value not equal to itself).
 
-### The HTML chart data — emits win_rate_a, NO CI (`skill_ab_harness.py:2964-3010`)
+### The HTML chart data — emits win_rate_a, NO CI (`skills_test.py:2964-3010`)
 
 ```python
 def _chart_data(results: list[RunResult], cfg: ExperimentConfig, metrics: list,
@@ -200,7 +200,7 @@ def _chart_data(results: list[RunResult], cfg: ExperimentConfig, metrics: list,
             "armMeans": arm_means, "comparisons": comps, "judge": judge}
 ```
 
-### The HTML caller — `build_html_report` already has a seeded `rng` (`skill_ab_harness.py:3077-3107`)
+### The HTML caller — `build_html_report` already has a seeded `rng` (`skills_test.py:3077-3107`)
 
 ```python
 def build_html_report(results: list[RunResult], pf: Preflight, cfg: ExperimentConfig,
@@ -222,10 +222,10 @@ That ordering matters: passing the SAME `rng` into `_chart_data` afterward does
 not perturb any ITT number (those are already computed), and keeps the whole
 report deterministic for a given `seed`.
 
-### The HTML judge panel JS — renders win_rate_a, NO CI (`skill_ab_harness.py:2778-2846`)
+### The HTML judge panel JS — renders win_rate_a, NO CI (`skills_test.py:2778-2846`)
 
 This lives inside `_HTML_SCRIPT`, a **raw triple-quoted r-string** of ES5 vanilla
-JS (`_HTML_SCRIPT = r"""(function(){` at `skill_ab_harness.py:2201`). Convention:
+JS (`_HTML_SCRIPT = r"""(function(){` at `skills_test.py:2201`). Convention:
 `var`/`function` only, **no** template literals, **no** backticks, lines stay
 **< 100 columns**. Relevant excerpts:
 
@@ -269,17 +269,17 @@ it here. Guard your NEW CI access so you do not add a second null crash.
   like `cluster_bootstrap_ci`.
 - Ruff line-length is 100 for both the Python and the JS-inside-strings.
 - Test helpers to reuse: `_cmp(task, pid, ordering, winner, a=, b=, pair=)` builds
-  a `JudgeComparison` (`test_skill_ab_harness.py:240-243`); `_cfg(**kw)` builds an
+  a `JudgeComparison` (`test_skills_test.py:240-243`); `_cfg(**kw)` builds an
   `ExperimentConfig` with `bootstrap_iters=2000` by default
-  (`test_skill_ab_harness.py:18-25`).
+  (`test_skills_test.py:18-25`).
 
 ## Commands you will need
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Tests | `python3 test_skill_ab_harness.py` (run from repo root) | ends with `N passed`, exit 0 |
-| Lint | `uvx ruff check skill_ab_harness.py` | `All checks passed!`, exit 0 |
-| Quick probe | `python3 -c "import skill_ab_harness as h; ..."` | per-step expected print |
+| Tests | `python3 test_skills_test.py` (run from repo root) | ends with `N passed`, exit 0 |
+| Lint | `uvx ruff check skills_test.py` | `All checks passed!`, exit 0 |
+| Quick probe | `python3 -c "import skills_test as h; ..."` | per-step expected print |
 
 Run all commands from `/Users/copyjosh/Code/skills-test`. No `claude`, `git`, or
 network is needed — every change is pure Python/JS-string logic and the tests are
@@ -288,10 +288,10 @@ offline.
 ## Scope
 
 **In scope** (the only files you should modify):
-- `/Users/copyjosh/Code/skills-test/skill_ab_harness.py` — add the CI helper,
+- `/Users/copyjosh/Code/skills-test/skills_test.py` — add the CI helper,
   thread it through `aggregate_judge`, `build_judge_report`, `_chart_data` (+ its
   `build_html_report` caller), and the `judgeSection` JS.
-- `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py` — new tests.
+- `/Users/copyjosh/Code/skills-test/test_skills_test.py` — new tests.
 
 **Out of scope** (do NOT touch, even though they look related):
 - `/Users/copyjosh/Code/skills-test/CLAUDE.md` — the "Open work" bullet already
@@ -317,8 +317,8 @@ make — edit the two files in place. Do not run `git` commands.
 
 ### Step 1: Add the `judge_winrate_ci` helper
 
-Insert a new function in `skill_ab_harness.py` immediately ABOVE `def
-aggregate_judge` (i.e. just before `skill_ab_harness.py:1527`). It must mirror
+Insert a new function in `skills_test.py` immediately ABOVE `def
+aggregate_judge` (i.e. just before `skills_test.py:1527`). It must mirror
 `cluster_bootstrap_ci`'s task-then-within-task resampling and percentile indexing,
 but recompute the judge win-rate each iteration. Target shape:
 
@@ -366,12 +366,12 @@ drew only ties/failures carries no preference signal; counting it as 0.5 would
 fabricate a "no preference" data point and bias the interval toward the center.
 Skipping is the honest analogue of `cluster_bootstrap_ci`'s empty-arm guard.
 
-**Verify**: `python3 -c "import skill_ab_harness as h, random; print(h.judge_winrate_ci([], 100, 0.05, random.Random(0)))"`
+**Verify**: `python3 -c "import skills_test as h, random; print(h.judge_winrate_ci([], 100, 0.05, random.Random(0)))"`
 → prints `None`.
 
 ### Step 2: Thread the CI through `aggregate_judge`
 
-Change the signature at `skill_ab_harness.py:1527` to accept keyword-only,
+Change the signature at `skills_test.py:1527` to accept keyword-only,
 defaulted CI knobs so existing callers (`aggregate_judge(comparisons)`) keep
 working and simply get `win_rate_a_ci: None`:
 
@@ -391,12 +391,12 @@ enabled (a positive `ci_iters` AND an `rng`):
 Add `"win_rate_a_ci": ci,` as a new key in the `out[pkey] = {...}` dict. Update
 the docstring's returned-keys list to include `win_rate_a_ci`.
 
-**Verify**: `python3 -c "import skill_ab_harness as h, random; c=[h.JudgeComparison('t',0,'a_first','my-skill',pair='p',a_label='my-skill',b_label='control'),h.JudgeComparison('t',1,'a_first','my-skill',pair='p',a_label='my-skill',b_label='control')]; a=h.aggregate_judge(c, ci_iters=500, alpha=0.05, rng=random.Random(0))['p']; print(a['win_rate_a'], a['win_rate_a_ci']); print(h.aggregate_judge(c)['p']['win_rate_a_ci'])"`
+**Verify**: `python3 -c "import skills_test as h, random; c=[h.JudgeComparison('t',0,'a_first','my-skill',pair='p',a_label='my-skill',b_label='control'),h.JudgeComparison('t',1,'a_first','my-skill',pair='p',a_label='my-skill',b_label='control')]; a=h.aggregate_judge(c, ci_iters=500, alpha=0.05, rng=random.Random(0))['p']; print(a['win_rate_a'], a['win_rate_a_ci']); print(h.aggregate_judge(c)['p']['win_rate_a_ci'])"`
 → first line prints `1.0 (1.0, 1.0)`; second line prints `None`.
 
 ### Step 3: Show the CI in the Markdown report
 
-In `build_judge_report` (`skill_ab_harness.py:1583`), change the aggregation call
+In `build_judge_report` (`skills_test.py:1583`), change the aggregation call
 to seed and enable the CI using the function's existing `seed` parameter and the
 config's bootstrap knobs:
 
@@ -424,13 +424,13 @@ Leave the `position-consistency` and `verdict` lines unchanged. The substring
 `win rate: {wr_s}` is preserved (e.g. `win rate: 1.000 [1.000, 1.000]`), so the
 existing `test_build_judge_report_empty_and_basic` assertion still holds.
 
-**Verify**: `python3 test_skill_ab_harness.py` → still `53 passed` (no behavior
+**Verify**: `python3 test_skills_test.py` → still `53 passed` (no behavior
 asserted on the new text yet; new tests come in Step 6).
 
 ### Step 4: Emit the CI in `_chart_data`
 
 `_chart_data` needs an `rng` to compute the CI deterministically. Add it as a new
-parameter (`skill_ab_harness.py:2964`):
+parameter (`skills_test.py:2964`):
 
 ```python
 def _chart_data(results: list[RunResult], cfg: ExperimentConfig, metrics: list,
@@ -438,7 +438,7 @@ def _chart_data(results: list[RunResult], cfg: ExperimentConfig, metrics: list,
                 rng: random.Random) -> dict:
 ```
 
-Change the judge aggregation call (`skill_ab_harness.py:2998`) to enable the CI,
+Change the judge aggregation call (`skills_test.py:2998`) to enable the CI,
 and add the new key to each judge entry:
 
 ```python
@@ -455,7 +455,7 @@ and add the new key to each judge entry:
                                 if agg["total_pairs"] else 0)})
 ```
 
-Update the single caller in `build_html_report` (`skill_ab_harness.py:3107`) to
+Update the single caller in `build_html_report` (`skills_test.py:3107`) to
 pass the already-existing `rng`:
 
 ```python
@@ -467,12 +467,12 @@ are already computed above this line, so consuming `rng` here cannot change them
 and reusing the seeded generator keeps the whole report reproducible for a given
 `seed`.
 
-**Verify**: `python3 -c "import skill_ab_harness as h; import inspect; print('rng' in inspect.signature(h._chart_data).parameters)"`
-→ prints `True`. Then `python3 test_skill_ab_harness.py` → still `53 passed`.
+**Verify**: `python3 -c "import skills_test as h; import inspect; print('rng' in inspect.signature(h._chart_data).parameters)"`
+→ prints `True`. Then `python3 test_skills_test.py` → still `53 passed`.
 
 ### Step 5: Render the CI in the `judgeSection` JS panel
 
-Edit the ES5 JS inside `_HTML_SCRIPT` (`skill_ab_harness.py:2778-2846`). ES5 only:
+Edit the ES5 JS inside `_HTML_SCRIPT` (`skills_test.py:2778-2846`). ES5 only:
 `var`/`function`, no template literals/backticks, every line < 100 columns. Guard
 all CI access with `j.win_rate_a_ci ?` (it is `null` when there is no CI).
 
@@ -496,17 +496,17 @@ all CI access with `j.win_rate_a_ci ?` (it is `null` when there is no CI).
 Do NOT alter the existing `j.win_rate_a.toFixed(2)` calls or the SVG bar geometry
 (drawing a CI whisker on the bar is explicitly out of scope for this plan).
 
-**Verify**: `uvx ruff check skill_ab_harness.py` → `All checks passed!` (ruff
+**Verify**: `uvx ruff check skills_test.py` → `All checks passed!` (ruff
 also flags any Python line that drifted over 100 cols while editing the string).
-Then `python3 -c "import skill_ab_harness as h; assert 'win_rate_a_ci' in h._HTML_SCRIPT; assert '95% CI' in h._HTML_SCRIPT; print('ok')"`
+Then `python3 -c "import skills_test as h; assert 'win_rate_a_ci' in h._HTML_SCRIPT; assert '95% CI' in h._HTML_SCRIPT; print('ok')"`
 → prints `ok`.
 
 ### Step 6: Add tests
 
-Add these top-level `def test_*` functions to `test_skill_ab_harness.py` (the
+Add these top-level `def test_*` functions to `test_skills_test.py` (the
 runner auto-discovers them). Place them next to the other judge tests (near
 `test_aggregate_judge_double_failure_not_consistent`, ~line 578). Reuse the
-existing `_cmp(...)` helper (`test_skill_ab_harness.py:240-243`) and `random`
+existing `_cmp(...)` helper (`test_skills_test.py:240-243`) and `random`
 (already imported at the top of the test file).
 
 ```python
@@ -551,7 +551,7 @@ def test_judge_report_shows_ci():
     assert "win rate: 1.000 [1.000, 1.000]" in rep
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → ends with `57 passed` (53 +
+**Verify**: `python3 test_skills_test.py` → ends with `57 passed` (53 +
 4 new), exit 0.
 
 ### Step 7: Final gate
@@ -559,12 +559,12 @@ def test_judge_report_shows_ci():
 Run both quality gates.
 
 **Verify**:
-- `python3 test_skill_ab_harness.py` → `57 passed`, exit 0.
-- `uvx ruff check skill_ab_harness.py` → `All checks passed!`, exit 0.
+- `python3 test_skills_test.py` → `57 passed`, exit 0.
+- `uvx ruff check skills_test.py` → `All checks passed!`, exit 0.
 
 ## Test plan
 
-New tests in `test_skill_ab_harness.py` (model their style on the existing judge
+New tests in `test_skills_test.py` (model their style on the existing judge
 tests `test_aggregate_position_bias_washes_out` and
 `test_aggregate_judge_double_failure_not_consistent`):
 
@@ -579,24 +579,24 @@ tests `test_aggregate_position_bias_washes_out` and
   caller, exercising the `seed`→`rng`→`aggregate_judge` wiring, not a mock): the
   `[lo, hi]` text appears in the report.
 
-Verification: `python3 test_skill_ab_harness.py` → all pass, including the 4 new
+Verification: `python3 test_skills_test.py` → all pass, including the 4 new
 tests (total `57 passed`).
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0 and prints `57 passed` (the 4 new
+- [ ] `python3 test_skills_test.py` exits 0 and prints `57 passed` (the 4 new
       judge-CI tests exist and pass alongside the original 53).
-- [ ] `uvx ruff check skill_ab_harness.py` prints `All checks passed!`, exit 0.
-- [ ] `python3 -c "import skill_ab_harness as h, inspect; assert 'win_rate_a_ci' in h.aggregate_judge([]).__class__ or True; assert hasattr(h, 'judge_winrate_ci'); assert 'rng' in inspect.signature(h._chart_data).parameters; print('ok')"`
+- [ ] `uvx ruff check skills_test.py` prints `All checks passed!`, exit 0.
+- [ ] `python3 -c "import skills_test as h, inspect; assert 'win_rate_a_ci' in h.aggregate_judge([]).__class__ or True; assert hasattr(h, 'judge_winrate_ci'); assert 'rng' in inspect.signature(h._chart_data).parameters; print('ok')"`
       prints `ok` (helper exists; `_chart_data` takes `rng`).
-- [ ] `python3 -c "import skill_ab_harness as h; assert '95% CI' in h._HTML_SCRIPT and 'win_rate_a_ci' in h._HTML_SCRIPT; print('ok')"`
+- [ ] `python3 -c "import skills_test as h; assert '95% CI' in h._HTML_SCRIPT and 'win_rate_a_ci' in h._HTML_SCRIPT; print('ok')"`
       prints `ok` (HTML panel renders the CI).
-- [ ] No dependency added — `grep -nE '^(import|from) ' skill_ab_harness.py` shows
+- [ ] No dependency added — `grep -nE '^(import|from) ' skills_test.py` shows
       only stdlib modules (e.g. `asyncio`, `random`, `statistics`, `hashlib`,
       `json`, `subprocess`, `dataclasses`, `pathlib`); nothing new.
-- [ ] Only `skill_ab_harness.py` and `test_skill_ab_harness.py` were modified;
+- [ ] Only `skills_test.py` and `test_skills_test.py` were modified;
       `CLAUDE.md` is unchanged.
 
 ## STOP conditions

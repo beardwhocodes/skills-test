@@ -7,7 +7,7 @@
 > `plans/README.md` by the reviewer — do NOT edit `plans/README.md` yourself.
 >
 > **Drift check (run first)**: this repo is NOT git-initialized, so there is no
-> SHA to diff against. Instead, open `skill_ab_harness.py` and compare the
+> SHA to diff against. Instead, open `skills_test.py` and compare the
 > "Current state" excerpts below (quoted with `file:line`) to the live code
 > before editing. On any mismatch, treat it as a STOP condition.
 
@@ -41,11 +41,11 @@ the exact same return contract.
 
 ## Current state
 
-Single module under change: `skill_ab_harness.py` (~3715 lines), stdlib-only,
-Python ≥3.11. Tests live in `test_skill_ab_harness.py` (a custom stdlib runner,
+Single module under change: `skills_test.py` (~3715 lines), stdlib-only,
+Python ≥3.11. Tests live in `test_skills_test.py` (a custom stdlib runner,
 **not pytest**). The HTML report and stats all live in this one module.
 
-### The function being changed — `skill_ab_harness.py:3184-3206`
+### The function being changed — `skills_test.py:3184-3206`
 
 ```python
 def minimum_detectable_effect(cfg: ExperimentConfig, n_tasks: int, baseline: float,
@@ -85,7 +85,7 @@ different number than the linear scan. The fix below removes this coupling by
 seeding a **fresh rng per grid index**, so each delta's power estimate is a pure
 function of `(seed, index)` and is independent of search order.
 
-### The collaborator it calls — `skill_ab_harness.py:1103-1105` (signature only, do NOT change)
+### The collaborator it calls — `skills_test.py:1103-1105` (signature only, do NOT change)
 
 ```python
 def cluster_bootstrap_ci(on: dict[str, list[float]], off: dict[str, list[float]],
@@ -93,7 +93,7 @@ def cluster_bootstrap_ci(on: dict[str, list[float]], off: dict[str, list[float]]
                          rng: random.Random) -> tuple[float, float, bool]:
 ```
 
-### The only caller — `skill_ab_harness.py:3698-3701` (the `plan` command; do NOT change)
+### The only caller — `skills_test.py:3698-3701` (the `plan` command; do NOT change)
 
 ```python
         if args.baseline is not None and args.noise is not None:
@@ -105,7 +105,7 @@ def cluster_bootstrap_ci(on: dict[str, list[float]], off: dict[str, list[float]]
 This caller only needs the float-or-None return and uses defaults for `seed`,
 `deltas`, `sims`, `power`. Keep the signature and return type identical.
 
-### The existing test — `test_skill_ab_harness.py:457-461`
+### The existing test — `test_skills_test.py:457-461`
 
 ```python
 def test_mde_monotone():
@@ -115,7 +115,7 @@ def test_mde_monotone():
     assert small is not None and (big is None or big >= small)
 ```
 
-### Test helpers you will reuse — `test_skill_ab_harness.py:18-25`
+### Test helpers you will reuse — `test_skills_test.py:18-25`
 
 ```python
 def _cfg(**kw) -> ExperimentConfig:
@@ -128,13 +128,13 @@ def _cfg(**kw) -> ExperimentConfig:
     return ExperimentConfig(**base)
 ```
 
-The module is imported as `import skill_ab_harness as h` at the top of the test
+The module is imported as `import skills_test as h` at the top of the test
 file, so call everything as `h.<name>`.
 
 ### Conventions that apply here
 
 - **Stdlib-only is a hard rule.** Do NOT add any dependency or new `import`
-  (no numpy/pandas/pytest). The current imports are at `skill_ab_harness.py:62-82`
+  (no numpy/pandas/pytest). The current imports are at `skills_test.py:62-82`
   and include `import random`; `Callable` is NOT imported and you must NOT add
   it (annotate the callback parameter without a type instead).
 - Comments explain **why**, not what.
@@ -144,7 +144,7 @@ file, so call everything as `h.<name>`.
 
 ### IMPORTANT pre-existing lint state (read before you run ruff)
 
-`uvx ruff check skill_ab_harness.py` already reports **4 pre-existing errors**,
+`uvx ruff check skills_test.py` already reports **4 pre-existing errors**,
 all `E702 Multiple statements on one line (semicolon)`, at **lines 1158, 1159,
 3661, 3663** — all OUTSIDE this plan's scope. Do NOT fix them here (they belong
 to other work). Your obligation is: introduce **zero new** ruff errors and leave
@@ -154,20 +154,20 @@ the count at exactly 4 (the same 4 lines). See Done criteria for the exact check
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Run tests | `python3 test_skill_ab_harness.py` | prints `55 passed` (53 today + 2 new), exit 0 |
-| Lint | `uvx ruff check skill_ab_harness.py` | still ends with `Found 4 errors.` (the 4 pre-existing E702s only) |
-| Import smoke | `python3 -c "import skill_ab_harness"` | no output, exit 0 |
+| Run tests | `python3 test_skills_test.py` | prints `55 passed` (53 today + 2 new), exit 0 |
+| Lint | `uvx ruff check skills_test.py` | still ends with `Found 4 errors.` (the 4 pre-existing E702s only) |
+| Import smoke | `python3 -c "import skills_test"` | no output, exit 0 |
 
 ## Scope
 
 **In scope** (the only files you may modify):
-- `skill_ab_harness.py` — rewrite `minimum_detectable_effect`; add one private
+- `skills_test.py` — rewrite `minimum_detectable_effect`; add one private
   helper directly above it.
-- `test_skill_ab_harness.py` — add 2 new tests; lightly extend `test_mde_monotone`.
+- `test_skills_test.py` — add 2 new tests; lightly extend `test_mde_monotone`.
 
 **Out of scope** (do NOT touch):
-- `cluster_bootstrap_ci` (`skill_ab_harness.py:1103`) and any other stats fn.
-- The `plan` command caller (`skill_ab_harness.py:3698-3701`).
+- `cluster_bootstrap_ci` (`skills_test.py:1103`) and any other stats fn.
+- The `plan` command caller (`skills_test.py:3698-3701`).
 - The 4 pre-existing `E702` lint errors (lines 1158, 1159, 3661, 3663).
 - `plans/README.md` and any plan 001–014, 017 — not yours.
 - The import block — add no new imports.
@@ -182,7 +182,7 @@ files in place. Do not run any `git` command.
 ### Step 1: Add the `_smallest_delta_reaching_power` search helper
 
 Insert this function **directly above** the `def minimum_detectable_effect(...)`
-line (currently `skill_ab_harness.py:3184`). It encapsulates the bisection so it
+line (currently `skills_test.py:3184`). It encapsulates the bisection so it
 can be unit-tested in isolation against a deterministic power function. Note the
 callback parameter `power_at` has **no type annotation** on purpose (so we avoid
 importing `Callable`).
@@ -206,12 +206,12 @@ def _smallest_delta_reaching_power(deltas: list[float], power_at,
     return deltas[lo] if lo < len(deltas) else None
 ```
 
-**Verify**: `python3 -c "import skill_ab_harness as h; g=[i/100 for i in range(1,21)]; print(h._smallest_delta_reaching_power(g, lambda i: 1.0 if i>=9 else 0.0, 0.8), h._smallest_delta_reaching_power(g, lambda i: 0.0, 0.8))"`
+**Verify**: `python3 -c "import skills_test as h; g=[i/100 for i in range(1,21)]; print(h._smallest_delta_reaching_power(g, lambda i: 1.0 if i>=9 else 0.0, 0.8), h._smallest_delta_reaching_power(g, lambda i: 0.0, 0.8))"`
 → prints `0.1 None` (smallest delta at index 9 is 0.10; an all-zero power curve yields None).
 
 ### Step 2: Rewrite `minimum_detectable_effect` to per-index seeding + bisection
 
-Replace the **entire** current body (`skill_ab_harness.py:3184-3206`, the block
+Replace the **entire** current body (`skills_test.py:3184-3206`, the block
 quoted in Current state) with:
 
 ```python
@@ -262,17 +262,17 @@ Notes for the executor:
 
 **Verify**:
 ```
-python3 -c "import skill_ab_harness as h; from pathlib import Path; \
+python3 -c "import skills_test as h; from pathlib import Path; \
 cfg=h.ExperimentConfig(repo_path=Path('/r'),base_ref='m',skill_src=Path('/s'),skill_name='s',bootstrap_iters=2000,permutation_iters=2000,k=6); \
 print(h.minimum_detectable_effect(cfg,3,0.5,0.02,sims=60), h.minimum_detectable_effect(cfg,2,0.5,5.0,sims=40))"
 ```
 → first value is a small float in the grid (e.g. `0.01`–`0.05`) and **not None**;
 second value is `None` (huge noise, undetectable). Then run
-`python3 test_skill_ab_harness.py` → `53 passed` (existing tests still green).
+`python3 test_skills_test.py` → `53 passed` (existing tests still green).
 
 ### Step 3: Add tests + lightly extend `test_mde_monotone`
 
-In `test_skill_ab_harness.py`, **after** `test_mde_monotone` (currently ending at
+In `test_skills_test.py`, **after** `test_mde_monotone` (currently ending at
 line 461), add the two tests below. They exercise the bisection's contract
 deterministically.
 
@@ -327,11 +327,11 @@ def test_mde_monotone():
     assert small in [i / 100 for i in range(1, 51)]   # returns a grid delta
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → `55 passed`, exit 0.
+**Verify**: `python3 test_skills_test.py` → `55 passed`, exit 0.
 
 ## Test plan
 
-- New tests in `test_skill_ab_harness.py`, modeled structurally on
+- New tests in `test_skills_test.py`, modeled structurally on
   `test_mde_monotone` (`:457`) and using the `_cfg()` helper (`:18`):
   - `test_mde_bisection_matches_linear_scan` — happy path + the regression this
     plan guards: bisection returns the **same** delta as a brute linear scan on
@@ -341,35 +341,35 @@ def test_mde_monotone():
     real simulation path and the pure search helper.
 - Extended `test_mde_monotone` — adds a grid-membership assertion on the
   real-simulation return value.
-- Verification: `python3 test_skill_ab_harness.py` → all pass, including the 2
+- Verification: `python3 test_skills_test.py` → all pass, including the 2
   new tests (`55 passed`).
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0 and prints `55 passed`
+- [ ] `python3 test_skills_test.py` exits 0 and prints `55 passed`
       (53 pre-existing + 2 new); `test_mde_bisection_matches_linear_scan` and
       `test_mde_returns_none_when_undetectable` are present and pass.
-- [ ] `uvx ruff check skill_ab_harness.py` still ends with `Found 4 errors.`
+- [ ] `uvx ruff check skills_test.py` still ends with `Found 4 errors.`
       and every reported error is `E702` at line 1158, 1159, 3661, or 3663
       (i.e. zero new errors, none in the changed region). Confirm with:
-      `uvx ruff check skill_ab_harness.py 2>&1 | grep -E '318[0-9]|319[0-9]|320[0-9]|321[0-9]|322[0-9]'`
+      `uvx ruff check skills_test.py 2>&1 | grep -E '318[0-9]|319[0-9]|320[0-9]|321[0-9]|322[0-9]'`
       → **no output** (no error points into the rewritten function/helper).
-- [ ] `grep -n "def _smallest_delta_reaching_power" skill_ab_harness.py` → 1 match.
-- [ ] `grep -c "random.Random(seed)" skill_ab_harness.py` → `0`
+- [ ] `grep -n "def _smallest_delta_reaching_power" skills_test.py` → 1 match.
+- [ ] `grep -c "random.Random(seed)" skills_test.py` → `0`
       (the old shared-rng line is gone).
-- [ ] `python3 -c "import skill_ab_harness"` exits 0.
+- [ ] `python3 -c "import skills_test"` exits 0.
 - [ ] No files outside the in-scope list are modified.
 
 ## STOP conditions
 
 Stop and report back (do not improvise) if:
 
-- The code at `skill_ab_harness.py:3184-3206`, `:3698-3701`, or
-  `test_skill_ab_harness.py:457-461` does not match the "Current state"
+- The code at `skills_test.py:3184-3206`, `:3698-3701`, or
+  `test_skills_test.py:457-461` does not match the "Current state"
   excerpts (the codebase has drifted).
-- `uvx ruff check skill_ab_harness.py` reports MORE than 4 errors, or any error
+- `uvx ruff check skills_test.py` reports MORE than 4 errors, or any error
   whose line number falls inside the rewritten function/helper, after a
   reasonable fix attempt.
 - `test_mde_bisection_matches_linear_scan` fails — this would mean the bisection

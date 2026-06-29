@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/skill-ab-harness/results.schema.json",
   "title": "skill-ab summary",
-  "description": "Portable, shareable result of one skill A/B experiment (skill_ab_harness.summary_dict). v2 supports N arms and reports every pairwise comparison.",
+  "description": "Portable, shareable result of one skill A/B experiment (skills_test.summary_dict). v2 supports N arms and reports every pairwise comparison.",
   "type": "object",
   "required": ["schema_version", "manifest", "primary_metric", "primary_pair", "arms", "comparisons"],
   "additionalProperties": true,

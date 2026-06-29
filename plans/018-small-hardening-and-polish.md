@@ -38,8 +38,8 @@ a security foot-gun, a visual contradiction, a copy-paste failure, and clutter.
 
 ## Current state
 
-Single module under change: `/Users/copyjosh/Code/skills-test/skill_ab_harness.py`
-(~3715 lines). Tests: `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py`
+Single module under change: `/Users/copyjosh/Code/skills-test/skills_test.py`
+(~3715 lines). Tests: `/Users/copyjosh/Code/skills-test/test_skills_test.py`
 (53 tests, custom stdlib runner — NOT pytest). Docs:
 `/Users/copyjosh/Code/skills-test/README.md`,
 `/Users/copyjosh/Code/skills-test/CLAUDE.md`.
@@ -56,7 +56,7 @@ Single module under change: `/Users/copyjosh/Code/skills-test/skill_ab_harness.p
 - Comments explain WHY, not what.
 
 **Pre-existing lint baseline (NOT yours to fix):** `uvx ruff check
-skill_ab_harness.py` already reports **exactly 4 `E702` errors** (semicolon
+skills_test.py` already reports **exactly 4 `E702` errors** (semicolon
 statements) at lines 1158, 1159, 3661, 3663. These predate this plan and are
 out of scope. Your job is to add **zero new** errors. (Note: Step 4 deletes
 ~5 lines and will shift those line numbers up by ~5 — the count stays 4.)
@@ -66,27 +66,27 @@ out of scope. Your job is to add **zero new** errors. (Note: Step 4 deletes
 `task.id` is built into a per-run `label`, which becomes a worktree directory, a
 git branch, and an artifacts directory:
 
-`skill_ab_harness.py:850` (inside `execute_run`):
+`skills_test.py:850` (inside `execute_run`):
 ```python
     label = f"{task.id}-{arm.value}-{idx}"
 ```
-`skill_ab_harness.py:413-414` (inside `Worktree.__init__`):
+`skills_test.py:413-414` (inside `Worktree.__init__`):
 ```python
         self.path = cfg.worktree_root / label
         self.branch = f"ab/{label}"
 ```
-`skill_ab_harness.py:823` (inside `_dump_artifacts`):
+`skills_test.py:823` (inside `_dump_artifacts`):
 ```python
         dest = cfg.results_dir / "artifacts" / label
 ```
-`skill_ab_harness.py:843` (inside `_failed_result`):
+`skills_test.py:843` (inside `_failed_result`):
 ```python
         worktree=cfg.worktree_root / f"{task.id}-{arm.value}-{idx}",
 ```
 
 The untrusted path: `--from-github` → `_clone_from_github` shallow-clones a repo
 and calls `load_config(cfg_path)`, whose
-`skill_ab_harness.py:3233` builds tasks from the remote TOML:
+`skills_test.py:3233` builds tasks from the remote TOML:
 ```python
     tasks = [Task(**t) for t in data.get("task", [])]
 ```
@@ -94,7 +94,7 @@ So a remote `skillab.toml` controls `task.id`. An id like `../evil` (it contains
 `/`) makes `cfg.worktree_root / "../evil-on-0"` resolve OUTSIDE `worktree_root`.
 
 `Task` is a frozen dataclass with no validation today —
-`skill_ab_harness.py:96-110`:
+`skills_test.py:96-110`:
 ```python
 @dataclass(frozen=True)
 class Task:
@@ -113,7 +113,7 @@ class Task:
 ```
 
 **Exemplar to copy** — `ExperimentConfig.__post_init__` already raises
-`ValueError` for bad config, `skill_ab_harness.py:170-178`:
+`ValueError` for bad config, `skills_test.py:170-178`:
 ```python
     def __post_init__(self):
         # Head-to-head needs BOTH skill_b fields. A half-set pair would otherwise
@@ -126,7 +126,7 @@ class Task:
                              "collision).")
 ```
 And the same charset guard already used for owner/repo in
-`resolve_target`, `skill_ab_harness.py:3497-3499`:
+`resolve_target`, `skills_test.py:3497-3499`:
 ```python
         if (not re.fullmatch(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+", owner_repo)
                 or ".." in owner_repo or owner.startswith("-") or reponame.startswith("-")):
@@ -139,7 +139,7 @@ ids `"a"`, `"b"` — so adding the guard breaks nothing.
 ### Step 2 facts — strip-chart null-mean marker
 
 `stripChart` includes an arm if ANY run (valid OR invalid) has a non-null score —
-`skill_ab_harness.py:2719-2721`:
+`skills_test.py:2719-2721`:
 ```javascript
   function stripChart(m){
     var arms = (D.arms || []).filter(function(a){
@@ -147,7 +147,7 @@ ids `"a"`, `"b"` — so adding the guard breaks nothing.
 ```
 But the per-arm mean comes from `armMeans`, which is computed over ITT-valid runs
 only and is `null` for an all-invalid arm —
-`skill_ab_harness.py:2236-2239`:
+`skills_test.py:2236-2239`:
 ```javascript
   function mean(a, m){
     var v = D.armMeans && D.armMeans[a] ? D.armMeans[a][m] : null;
@@ -156,8 +156,8 @@ only and is `null` for an all-invalid arm —
 ```
 So for an arm whose only non-null scores are on invalid runs, `mv` is `null`. JS
 coerces `null` to `0` in `y(mv)`, so the marker is drawn at value 0, and
-`fmtVal(m, null)` prints `—` (see `fmtVal`, `skill_ab_harness.py:2247-2252`). The
-bug site, `skill_ab_harness.py:2742` and `2755-2761`:
+`fmtVal(m, null)` prints `—` (see `fmtVal`, `skills_test.py:2247-2252`). The
+bug site, `skills_test.py:2742` and `2755-2761`:
 ```javascript
       var mv = mean(a, m), spacing = Math.min(22, band / (rs.length + 1));
 ```
@@ -169,7 +169,7 @@ bug site, `skill_ab_harness.py:2742` and `2755-2761`:
         + (cx + band * 0.32 + 4) + "' y='" + (my + 4).toFixed(1) + "' fill='" + c
         + "'>" + fmtVal(m, mv) + "</text>";
 ```
-The bar chart already guards correctly — `barChart`, `skill_ab_harness.py:2605`:
+The bar chart already guards correctly — `barChart`, `skills_test.py:2605`:
 ```javascript
     var arms = (D.arms || []).filter(function(a){ return mean(a, m) != null; });
 ```
@@ -178,24 +178,24 @@ The bar chart already guards correctly — `barChart`, `skill_ab_harness.py:2605
 
 `README.md:13`:
 ```
-python skill_ab_harness.py demo          # or: skills-test demo  (after pip/uvx install)
+python skills_test.py demo          # or: skills-test demo  (after pip/uvx install)
 ```
 `README.md:110`:
 ```
-`python test_skill_ab_harness.py` — stdlib-only, no `claude`/`git` required.
+`python test_skills_test.py` — stdlib-only, no `claude`/`git` required.
 ```
 `CLAUDE.md:99`:
 ```
-`python test_skill_ab_harness.py` (stdlib-only; no `claude`/`git` needed) covers
+`python test_skills_test.py` (stdlib-only; no `claude`/`git` needed) covers
 ```
-`test_skill_ab_harness.py:6` (module docstring):
+`test_skills_test.py:6` (module docstring):
 ```
-Run: `python -m pytest -q` or `python test_skill_ab_harness.py`.
+Run: `python -m pytest -q` or `python test_skills_test.py`.
 ```
 
 ### Step 4 facts — `_pooled_mean_diff` is dead production code
 
-`skill_ab_harness.py:1096-1100`:
+`skills_test.py:1096-1100`:
 ```python
 def _pooled_mean_diff(on: dict[str, list[float]], off: dict[str, list[float]],
                       shared: list[str]) -> float:
@@ -205,7 +205,7 @@ def _pooled_mean_diff(on: dict[str, list[float]], off: dict[str, list[float]],
 ```
 `grep -rn "_pooled_mean_diff"` over the repo returns exactly TWO lines: the
 definition above, and **one self-referential test caller** — there is NO
-production caller. The test, `test_skill_ab_harness.py:93-100`:
+production caller. The test, `test_skills_test.py:93-100`:
 ```python
 def test_permutation_p_small_for_strong_effect():
     on = {"a": [1.0] * 8, "b": [1.0] * 8}
@@ -231,9 +231,9 @@ on a strong effect). `statistics` stays imported — it is used elsewhere (e.g.
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Tests   | `python3 test_skill_ab_harness.py` | ends with `53 passed` (or `54 passed` after Step 1 adds a test) |
-| Lint    | `uvx ruff check skill_ab_harness.py` | `Found 4 errors.` — all `E702`, all pre-existing (see baseline); **count must not increase** |
-| Lint count | `uvx ruff check skill_ab_harness.py 2>&1 \| grep -c E702` | `4` |
+| Tests   | `python3 test_skills_test.py` | ends with `53 passed` (or `54 passed` after Step 1 adds a test) |
+| Lint    | `uvx ruff check skills_test.py` | `Found 4 errors.` — all `E702`, all pre-existing (see baseline); **count must not increase** |
+| Lint count | `uvx ruff check skills_test.py 2>&1 \| grep -c E702` | `4` |
 | Caller grep | `grep -rn "_pooled_mean_diff" /Users/copyjosh/Code/skills-test` | after Step 4: no matches |
 
 Run all commands from `/Users/copyjosh/Code/skills-test`. Use `python3`, not
@@ -242,8 +242,8 @@ Run all commands from `/Users/copyjosh/Code/skills-test`. Use `python3`, not
 ## Scope
 
 **In scope** (the only files you may modify):
-- `/Users/copyjosh/Code/skills-test/skill_ab_harness.py` (Steps 1, 2, 4)
-- `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py` (Steps 1, 4)
+- `/Users/copyjosh/Code/skills-test/skills_test.py` (Steps 1, 2, 4)
+- `/Users/copyjosh/Code/skills-test/test_skills_test.py` (Steps 1, 4)
 - `/Users/copyjosh/Code/skills-test/README.md` (Step 3)
 - `/Users/copyjosh/Code/skills-test/CLAUDE.md` (Step 3)
 
@@ -265,7 +265,7 @@ open. Edit the files in place. Do not run `git init`.
 ### Step 1: Validate `task.id` against a safe charset
 
 Add a `__post_init__` to the `Task` dataclass
-(`skill_ab_harness.py:96-110`) that rejects any id containing a path separator
+(`skills_test.py:96-110`) that rejects any id containing a path separator
 or `..`, mirroring `resolve_target`'s owner/repo guard. Put it immediately after
 the field declarations (after `build_cmd: str | None = None`), before the blank
 line that precedes `@dataclass(frozen=True)\nclass ExperimentConfig`. Target
@@ -282,12 +282,12 @@ shape:
                              f"(no path separators, no '..').")
 ```
 
-`re` is already imported (`skill_ab_harness.py:69`) — do not add an import.
+`re` is already imported (`skills_test.py:69`) — do not add an import.
 A `__post_init__` on a frozen dataclass is allowed; it only READS `self.id`.
 
-Then add two tests to `test_skill_ab_harness.py` (top-level functions named
+Then add two tests to `test_skills_test.py` (top-level functions named
 `test_*` — the runner auto-discovers them; model after
-`test_skill_a_equals_skill_b_rejected` at `test_skill_ab_harness.py:687-693`,
+`test_skill_a_equals_skill_b_rejected` at `test_skills_test.py:687-693`,
 which uses a `try/except ValueError` shape). Place them anywhere at module level,
 e.g. after `test_skill_a_equals_skill_b_rejected`:
 
@@ -307,15 +307,15 @@ def test_task_id_normal_accepted():
 ```
 
 **Verify**:
-- `python3 test_skill_ab_harness.py` → ends with `54 passed` and includes
+- `python3 test_skills_test.py` → ends with `54 passed` and includes
   `ok  test_task_id_path_traversal_rejected` and
   `ok  test_task_id_normal_accepted`.
-- `uvx ruff check skill_ab_harness.py 2>&1 | grep -c E702` → `4` (no new errors).
+- `uvx ruff check skills_test.py 2>&1 | grep -c E702` → `4` (no new errors).
 
 ### Step 2: Guard the strip-chart mean marker against a null mean
 
 In `stripChart`, replace the unconditional mean-marker block at
-`skill_ab_harness.py:2755-2761`. Replace exactly this:
+`skills_test.py:2755-2761`. Replace exactly this:
 
 ```javascript
       var my = y(mv);
@@ -347,49 +347,49 @@ show every run) while suppressing only the meaningless mean line/label. Do not
 change the `arms` filter at line 2719-2721.
 
 **Verify**:
-- `uvx ruff check skill_ab_harness.py 2>&1 | grep -c E702` → `4` (ruff lints the
+- `uvx ruff check skills_test.py 2>&1 | grep -c E702` → `4` (ruff lints the
   Python file; the edit must not change line count in a way that adds errors — it
   does not).
-- `python3 test_skill_ab_harness.py` → still passes (no JS unit tests exist; this
+- `python3 test_skills_test.py` → still passes (no JS unit tests exist; this
   confirms you did not break the Python that builds the string).
-- `grep -n 'if (mv != null) {' skill_ab_harness.py` → one match in `stripChart`.
+- `grep -n 'if (mv != null) {' skills_test.py` → one match in `stripChart`.
 
 ### Step 3: Use `python3` in docs
 
 Replace bare `python ` invocations with `python3 ` in the four locations under
 "Step 3 facts". Concretely:
-- `README.md:13`: `python skill_ab_harness.py demo` → `python3 skill_ab_harness.py demo`
+- `README.md:13`: `python skills_test.py demo` → `python3 skills_test.py demo`
   (preserve the trailing `# or: skills-test demo  (after pip/uvx install)` comment).
-- `README.md:110`: `python test_skill_ab_harness.py` → `python3 test_skill_ab_harness.py`.
-- `CLAUDE.md:99`: `python test_skill_ab_harness.py` → `python3 test_skill_ab_harness.py`.
-- `test_skill_ab_harness.py:6`: `python -m pytest -q` or `python
-  test_skill_ab_harness.py` → `python3 -m pytest -q` or `python3
-  test_skill_ab_harness.py` (this is a docstring; do not touch any executable
+- `README.md:110`: `python test_skills_test.py` → `python3 test_skills_test.py`.
+- `CLAUDE.md:99`: `python test_skills_test.py` → `python3 test_skills_test.py`.
+- `test_skills_test.py:6`: `python -m pytest -q` or `python
+  test_skills_test.py` → `python3 -m pytest -q` or `python3
+  test_skills_test.py` (this is a docstring; do not touch any executable
   line). Note: this repo's runner is NOT pytest — leave the `-m pytest` mention
   as-is (just `python` → `python3`); it is illustrative.
 
 Docs/comment only — no code behavior changes.
 
 **Verify**:
-- `grep -rn 'python ' README.md CLAUDE.md test_skill_ab_harness.py` → no line
+- `grep -rn 'python ' README.md CLAUDE.md test_skills_test.py` → no line
   shows a bare `python ` used as a command (matches like `python3 ` are fine;
   prose mentioning "Python" the language is fine). Eyeball the four cited lines.
-- `python3 test_skill_ab_harness.py` → still passes (docstring edit is inert).
+- `python3 test_skills_test.py` → still passes (docstring edit is inert).
 
 ### Step 4: Delete the dead `_pooled_mean_diff` helper
 
 First confirm the premise:
 `grep -rn "_pooled_mean_diff" /Users/copyjosh/Code/skills-test` must return
-exactly two lines — the definition at `skill_ab_harness.py:1096` and the single
-test caller at `test_skill_ab_harness.py:96`. **If it returns any third match
+exactly two lines — the definition at `skills_test.py:1096` and the single
+test caller at `test_skills_test.py:96`. **If it returns any third match
 (a production caller), STOP** (see STOP conditions).
 
 Then:
-1. Delete the function body `skill_ab_harness.py:1096-1100` (the 5 lines shown in
+1. Delete the function body `skills_test.py:1096-1100` (the 5 lines shown in
    "Step 4 facts"), including the blank line that separates it from the next
    `def cluster_bootstrap_ci(`. Leave exactly one blank line between the
    preceding function and `cluster_bootstrap_ci`.
-2. In `test_skill_ab_harness.py`, in `test_permutation_p_small_for_strong_effect`,
+2. In `test_skills_test.py`, in `test_permutation_p_small_for_strong_effect`,
    replace:
    ```python
        point = h._pooled_mean_diff(on, off, ["a", "b"])
@@ -405,26 +405,26 @@ Then:
 
 **Verify**:
 - `grep -rn "_pooled_mean_diff" /Users/copyjosh/Code/skills-test` → no matches.
-- `python3 test_skill_ab_harness.py` → passes; `ok
+- `python3 test_skills_test.py` → passes; `ok
   test_permutation_p_small_for_strong_effect` still listed.
-- `uvx ruff check skill_ab_harness.py 2>&1 | grep -c E702` → `4`.
+- `uvx ruff check skills_test.py 2>&1 | grep -c E702` → `4`.
 
 ## Test plan
 
-- **Step 1 (new tests)** in `test_skill_ab_harness.py`:
+- **Step 1 (new tests)** in `test_skills_test.py`:
   - `test_task_id_path_traversal_rejected` — the regression: a `../evil` id (the
     actual exploit shape) raises `ValueError`.
   - `test_task_id_normal_accepted` — happy path: every id the harness itself uses
     still constructs.
   - Pattern source: `test_skill_a_equals_skill_b_rejected`
-    (`test_skill_ab_harness.py:687`).
+    (`test_skills_test.py:687`).
 - **Step 4** edits an existing test (`test_permutation_p_small_for_strong_effect`)
   to drop the deleted helper while preserving its `cluster_permutation_p`
   assertions.
 - **Steps 2 & 3** have no automated test (the JS string is not unit-tested by the
   stdlib runner; the docs are prose). Their verification is the grep + the fact
-  that `python3 test_skill_ab_harness.py` still passes.
-- Full-suite verification: `python3 test_skill_ab_harness.py` → `54 passed`
+  that `python3 test_skills_test.py` still passes.
+- Full-suite verification: `python3 test_skills_test.py` → `54 passed`
   (53 existing + 1 net new: Step 1 adds two tests, Step 4 adds none and removes
   none).
 
@@ -432,17 +432,17 @@ Then:
 
 Machine-checkable. ALL must hold for the steps you performed:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0 and prints `54 passed` (if Step 1
+- [ ] `python3 test_skills_test.py` exits 0 and prints `54 passed` (if Step 1
       done) or `53 passed` (if Step 1 skipped).
 - [ ] If Step 1 done: `ok  test_task_id_path_traversal_rejected` and
       `ok  test_task_id_normal_accepted` appear in the output.
 - [ ] If Step 4 done: `grep -rn "_pooled_mean_diff"
       /Users/copyjosh/Code/skills-test` returns no matches.
-- [ ] If Step 2 done: `grep -n 'if (mv != null) {' skill_ab_harness.py` returns
+- [ ] If Step 2 done: `grep -n 'if (mv != null) {' skills_test.py` returns
       one match.
 - [ ] If Step 3 done: the four cited doc lines use `python3`, not bare `python`,
       as the command.
-- [ ] `uvx ruff check skill_ab_harness.py 2>&1 | grep -c E702` is `4` and no
+- [ ] `uvx ruff check skills_test.py 2>&1 | grep -c E702` is `4` and no
       non-`E702` codes appear (you introduced zero new lint errors).
 - [ ] No file outside the in-scope list was modified.
 - [ ] Your row in `plans/README.md` is updated by the reviewer (not you).
@@ -454,7 +454,7 @@ Stop and report back (do not improvise) if:
 - The live code at any cited `file:line` does not match the "Current state"
   excerpt (the file drifted since this plan was written).
 - `grep -rn "_pooled_mean_diff"` (Step 4) shows ANY caller other than the single
-  test line at `test_skill_ab_harness.py:96` — the dead-code premise is then
+  test line at `test_skills_test.py:96` — the dead-code premise is then
   false; do not delete.
 - Adding the `Task.__post_init__` guard (Step 1) makes any EXISTING test fail —
   that means a current Task id violates the charset; report which one rather than

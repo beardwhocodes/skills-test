@@ -27,9 +27,9 @@ result is actually trustworthy, so it can't be used to oversell.
 
 ## Current state
 
-- `class DiffEstimate` (`skill_ab_harness.py:765`): has `point`, `ci_low`,
+- `class DiffEstimate` (`skills_test.py:765`): has `point`, `ci_low`,
   `ci_high`, `n_tasks`, `clustered`, `q_value`, etc.
-- Significance convention (in `_row`, `skill_ab_harness.py:909`): a result is
+- Significance convention (in `_row`, `skills_test.py:909`): a result is
   "significant" when the 95% CI excludes 0, i.e. `not (ci_low <= 0 <= ci_high)`.
   `†`/`‡` flag `clustered is False` / `n_tasks < 2` (untrustworthy).
 - Plan 002 adds `summary_dict(...)["itt"][metric]` carrying `point/ci_low/ci_high/
@@ -43,15 +43,15 @@ result is actually trustworthy, so it can't be used to oversell.
 
 | Purpose | Command | Expected |
 |---|---|---|
-| Compile | `python3 -m py_compile skill_ab_harness.py test_skill_ab_harness.py` | exit 0 |
-| Tests | `python3 test_skill_ab_harness.py` | `N passed` |
+| Compile | `python3 -m py_compile skills_test.py test_skills_test.py` | exit 0 |
+| Tests | `python3 test_skills_test.py` | `N passed` |
 | Line length | plan-001 Step-5 snippet | `OK` |
 
 ## Scope
 
-**In scope:** `skill_ab_harness.py` (add `badge_verdict`, `render_badge_svg`,
+**In scope:** `skills_test.py` (add `badge_verdict`, `render_badge_svg`,
 `badge_endpoint_json`, `badge_markdown`, and a `badge` CLI subcommand);
-`test_skill_ab_harness.py` (verdict-logic tests).
+`test_skills_test.py` (verdict-logic tests).
 
 **Out of scope:** statistics, the significance rule itself (reuse it), the
 Markdown/HTML reports.
@@ -145,7 +145,7 @@ and a handler:
 (If plan 001 isn't landed, expose `badge` by calling these functions in a REPL;
 the functions are the deliverable, the subcommand is the convenience.)
 
-**Verify**: with a `summary.json` from plan 002, `python3 skill_ab_harness.py
+**Verify**: with a `summary.json` from plan 002, `python3 skills_test.py
 badge` writes an `.svg` and prints a Markdown line; `grep -c "<svg" skill-ab-badge.svg` → ≥1.
 
 ### Step 4: Tests
@@ -173,7 +173,7 @@ def test_render_badge_svg_is_svg():
     assert svg.startswith("<svg") and "tests_pass" in svg
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → `N passed`; line-length `OK`.
+**Verify**: `python3 test_skills_test.py` → `N passed`; line-length `OK`.
 
 ## Test plan
 

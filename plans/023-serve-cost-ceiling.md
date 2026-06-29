@@ -6,7 +6,7 @@
 > done, update the status row for this plan in `plans/README.md`.
 >
 > **Drift check (run first)**:
-> `git diff --stat b991faf..HEAD -- skill_ab_harness.py skill_ab_server.py skill_ab_app.py`
+> `git diff --stat b991faf..HEAD -- skills_test.py skills_test_server.py skills_test_app.py`
 > If any in-scope file changed since this plan was written, compare the "Current state"
 > excerpts against the live code before proceeding; on a mismatch, treat it as a STOP
 > condition.
@@ -41,16 +41,16 @@ behavior).
 
 Files and their roles:
 
-- `skill_ab_harness.py` — the engine. Already has the ceiling machinery; this plan adds
+- `skills_test.py` — the engine. Already has the ceiling machinery; this plan adds
   ONE event emit so a skipped run isn't invisible to the UI.
-- `skill_ab_server.py` — `_build_run_config` builds the `ExperimentConfig` from a
+- `skills_test_server.py` — `_build_run_config` builds the `ExperimentConfig` from a
   request but never sets `cost_ceiling_usd`.
-- `skill_ab_app.py` — the SPA. The New-run form (`viewNew`) and the live view
+- `skills_test_app.py` — the SPA. The New-run form (`viewNew`) and the live view
   (`viewLive`). The usage ticker already renders a ceiling; the form doesn't collect one.
 
 ### Engine — the ceiling already works, except for one UX gap
 
-`skill_ab_harness.py`, the config field (≈ line 211):
+`skills_test.py`, the config field (≈ line 211):
 ```python
     cost_ceiling_usd: float | None = None   # abort remaining runs once total cost crosses this
 ```
@@ -92,7 +92,7 @@ stuck on **"pending"** forever. Step 2 fixes this with a `run_skipped` event.
 
 ### Server — where the ceiling must be plumbed in
 
-`skill_ab_server.py`, `_build_run_config` builds the cfg (≈ line 305-315). It already
+`skills_test_server.py`, `_build_run_config` builds the cfg (≈ line 305-315). It already
 shows the numeric-validation/clamp style with the `k` field:
 ```python
     cfg = h.ExperimentConfig(
@@ -114,7 +114,7 @@ ceiling does not change the run count the estimate reports.
 
 ### Frontend — form payload and the already-ceiling-aware ticker
 
-`skill_ab_app.py`, the request builder `req(demo)` (search `function req(`) returns the
+`skills_test_app.py`, the request builder `req(demo)` (search `function req(`) returns the
 POST body; add `cost_ceiling_usd` there. Form inputs use the `E("input", {class:"inp",
 ...})` helper and the `field(label, hint, control)` wrapper (search `function field(`).
 Every interactive field is registered for `invalidate` in the
@@ -136,20 +136,20 @@ need to (a) collect the value in the form, (b) handle the new `run_skipped` even
 
 | Purpose            | Command                                                        | Expected on success            |
 |--------------------|---------------------------------------------------------------|--------------------------------|
-| Lint               | `uvx ruff check skill_ab_harness.py skill_ab_server.py skill_ab_app.py test_skill_ab_harness.py test_skill_ab_server.py` | `All checks passed!`           |
-| Engine tests       | `python3 test_skill_ab_harness.py`                            | `N passed` (N ≥ current + new) |
-| Server tests       | `python3 test_skill_ab_server.py`                             | `N passed` (N ≥ current + new) |
-| App JS syntax      | `python3 -c "import skill_ab_app as a; open('/tmp/_a.js','w').write(a._APP_JS)" && node --check /tmp/_a.js` | `/tmp/_a.js` OK, exit 0 |
+| Lint               | `uvx ruff check skills_test.py skills_test_server.py skills_test_app.py test_skills_test.py test_skills_test_server.py` | `All checks passed!`           |
+| Engine tests       | `python3 test_skills_test.py`                            | `N passed` (N ≥ current + new) |
+| Server tests       | `python3 test_skills_test_server.py`                             | `N passed` (N ≥ current + new) |
+| App JS syntax      | `python3 -c "import skills_test_app as a; open('/tmp/_a.js','w').write(a._APP_JS)" && node --check /tmp/_a.js` | `/tmp/_a.js` OK, exit 0 |
 
 (stdlib-only project; the test runner is custom, NOT pytest. `ruff` line-length is 100.)
 
 ## Scope
 
 **In scope** (the only files you should modify):
-- `skill_ab_harness.py` — Step 2 only (emit `run_skipped`).
-- `skill_ab_server.py` — Step 1 (parse/validate/pass the ceiling).
-- `skill_ab_app.py` — Steps 3 & 4 (form field; `run_skipped` cell handling + CSS).
-- `test_skill_ab_server.py`, `test_skill_ab_harness.py` — Step 5.
+- `skills_test.py` — Step 2 only (emit `run_skipped`).
+- `skills_test_server.py` — Step 1 (parse/validate/pass the ceiling).
+- `skills_test_app.py` — Steps 3 & 4 (form field; `run_skipped` cell handling + CSS).
+- `test_skills_test_server.py`, `test_skills_test.py` — Step 5.
 - `README.md` / `CLAUDE.md` — one-line doc note (Step 6).
 
 **Out of scope** (do NOT touch, even though they look related):
@@ -170,7 +170,7 @@ need to (a) collect the value in the form, (b) handle the new `run_skipped` even
 
 ### Step 1: Parse, validate, and pass the ceiling in `_build_run_config`
 
-In `skill_ab_server.py`, just before the `cfg = h.ExperimentConfig(...)` call in
+In `skills_test_server.py`, just before the `cfg = h.ExperimentConfig(...)` call in
 `_build_run_config`, add:
 ```python
     # Optional total-spend ceiling (usage proxy). Off when absent/blank. Positive number
@@ -190,12 +190,12 @@ In `skill_ab_server.py`, just before the `cfg = h.ExperimentConfig(...)` call in
 Then add `cost_ceiling_usd=cost_ceiling,` to the `ExperimentConfig(...)` keyword args
 (put it next to `judge_enabled=...`).
 
-**Verify**: `python3 -c "import skill_ab_server as s, skill_ab_harness as h; from pathlib import Path; h.resolve_skill=lambda n: Path('/x/'+n+'/SKILL.md'); h.resolve_target=lambda t,p: (Path('/r'),'HEAD',p or 'x',None,None); import tempfile; d=tempfile.mkdtemp(); print(s._build_run_config({'skill_a':'a','target':'.','prompt':'x','cost_ceiling_usd':'5'}, Path(d))[0].cost_ceiling_usd)"`
+**Verify**: `python3 -c "import skills_test_server as s, skills_test as h; from pathlib import Path; h.resolve_skill=lambda n: Path('/x/'+n+'/SKILL.md'); h.resolve_target=lambda t,p: (Path('/r'),'HEAD',p or 'x',None,None); import tempfile; d=tempfile.mkdtemp(); print(s._build_run_config({'skill_a':'a','target':'.','prompt':'x','cost_ceiling_usd':'5'}, Path(d))[0].cost_ceiling_usd)"`
 → prints `5.0`
 
 ### Step 2: Emit a `run_skipped` event so ceiling-skipped cells aren't invisible
 
-In `skill_ab_harness.py`, `execute_run`, change the budget gate to emit before
+In `skills_test.py`, `execute_run`, change the budget gate to emit before
 returning:
 ```python
         if budget is not None and budget["stop"]:
@@ -206,11 +206,11 @@ returning:
 (Only add the `_emit(...)` line; leave the return unchanged. `_SKIPPED_ERR` results stay
 filtered out of persistence and analysis — do not change that.)
 
-**Verify**: `grep -n "run_skipped" skill_ab_harness.py` → one match inside `execute_run`.
+**Verify**: `grep -n "run_skipped" skills_test.py` → one match inside `execute_run`.
 
 ### Step 3: Add the optional ceiling field to the New-run form
 
-In `skill_ab_app.py`, in `viewNew`, create the input near the other config fields (e.g.
+In `skills_test_app.py`, in `viewNew`, create the input near the other config fields (e.g.
 beside the `k` slider / isolation row):
 ```js
     var ceilingEl = E("input", {class:"inp", id:"f-ceiling", name:"cost_ceiling_usd",
@@ -232,12 +232,12 @@ object:
 ```
 
 **Verify**: app JS syntax command above → exit 0; and
-`python3 -c "import skill_ab_app as a; print('f-ceiling' in a._APP_JS and 'cost_ceiling_usd' in a._APP_JS)"`
+`python3 -c "import skills_test_app as a; print('f-ceiling' in a._APP_JS and 'cost_ceiling_usd' in a._APP_JS)"`
 → `True`
 
 ### Step 4: Mark ceiling-skipped cells in the live view + add CSS
 
-In `skill_ab_app.py`, `viewLive`, the event dispatch object has handlers like
+In `skills_test_app.py`, `viewLive`, the event dispatch object has handlers like
 `run_done: function(ev){ ... }` (search `run_done: function`). Add a sibling handler:
 ```js
       run_skipped: function(ev){
@@ -253,12 +253,12 @@ Add a CSS rule next to `.cell.invalid` (search `.cell.invalid{`):
 (If `setCell` validates the status string against a fixed set, add `"skipped"` to that
 set — search `function setCell`.)
 
-**Verify**: `python3 -c "import skill_ab_app as a; print('run_skipped' in a._APP_JS and 'cell.skipped' in a._APP_JS)"`
+**Verify**: `python3 -c "import skills_test_app as a; print('run_skipped' in a._APP_JS and 'cell.skipped' in a._APP_JS)"`
 → `True`; app JS `node --check` → exit 0.
 
 ### Step 5: Tests
 
-In `test_skill_ab_server.py`, add (model after `test_build_run_config_runner_b_preset_...`
+In `test_skills_test_server.py`, add (model after `test_build_run_config_runner_b_preset_...`
 which already stubs `h.resolve_skill`/`h.resolve_target`):
 ```python
 def test_build_run_config_parses_and_validates_cost_ceiling():
@@ -283,7 +283,7 @@ def test_build_run_config_parses_and_validates_cost_ceiling():
     finally:
         h.resolve_skill, h.resolve_target = orig_skill, orig_target
 ```
-In `test_skill_ab_harness.py`, add a test that the budget gate emits `run_skipped`. Drive
+In `test_skills_test.py`, add a test that the budget gate emits `run_skipped`. Drive
 `execute_run` with a tripped budget and a no-op scorer set, capturing events (model after
 the existing `execute_run`/event tests; use a `tempfile` worktree_root and a real tiny
 git repo only if an existing test already does — otherwise assert at the unit level that
@@ -307,10 +307,10 @@ notes. Keep it to 1–2 lines each.
 
 ## Test plan
 
-- **Server** (`test_skill_ab_server.py`): the happy path (`"5"` → `5.0`), off-by-default
+- **Server** (`test_skills_test_server.py`): the happy path (`"5"` → `5.0`), off-by-default
   (`""`/`None` → `None`), clamp (`"9999"` → `1000.0`), and rejection (`-1`, `0`, `abc`
   → `ValueError`). One maximal test covering all, as written in Step 5.
-- **Engine** (`test_skill_ab_harness.py`): a tripped budget makes `execute_run` emit a
+- **Engine** (`test_skills_test.py`): a tripped budget makes `execute_run` emit a
   `run_skipped` event and return a `_SKIPPED_ERR` result (so the cell can be marked,
   not left pending).
 - **JS**: `node --check` is the syntax gate; the form/live changes are vanilla DOM and
@@ -323,11 +323,11 @@ notes. Keep it to 1–2 lines each.
 ALL must hold:
 
 - [ ] `ruff` clean on all five files (command above).
-- [ ] `python3 test_skill_ab_harness.py` passes, including the new `run_skipped` test.
-- [ ] `python3 test_skill_ab_server.py` passes, including the new ceiling test.
+- [ ] `python3 test_skills_test.py` passes, including the new `run_skipped` test.
+- [ ] `python3 test_skills_test_server.py` passes, including the new ceiling test.
 - [ ] App JS `node --check` exits 0; `f-ceiling`, `cost_ceiling_usd`, `run_skipped`, and
       `cell.skipped` all present in `_APP_JS`.
-- [ ] `grep -n "cost_ceiling_usd" skill_ab_server.py` shows it read in
+- [ ] `grep -n "cost_ceiling_usd" skills_test_server.py` shows it read in
       `_build_run_config` and passed to `ExperimentConfig`, and NOT present in
       `_build_estimate_config`.
 - [ ] No files outside the in-scope list modified (`git status`).

@@ -64,30 +64,30 @@ Claude Code login — NOT the Agent SDK, which requires a metered API key).
 
 Four files. Owners in brackets — build in parallel against the contracts below.
 
-- **`skill_ab_harness.py`** (engine) — **[FOUNDATION, done first by the lead]**
+- **`skills_test.py`** (engine) — **[FOUNDATION, done first by the lead]**
   adds: an optional `on_event` progress callback threaded
   `run_experiment → execute_run → run_agent`; a `discover_runs(root)` history
   helper; and the `serve` subcommand wiring in `main()` that imports and calls the
   server module. Backward-compatible (`on_event=None` ⇒ today's behavior).
-- **`skill_ab_server.py`** (NEW) — **[senior backend agent]** the HTTP server:
+- **`skills_test_server.py`** (NEW) — **[senior backend agent]** the HTTP server:
   `ThreadingHTTPServer` subclass, a `_Handler(BaseHTTPRequestHandler)` with the
   routes below, a thread-safe `RunRegistry` (active runs + per-run SSE subscriber
   queues), security middleware (token + Host/Origin checks), the background-thread
   run launcher that wires `on_event` into the registry, and the **demo/replay**
   launcher. Exposes `serve(host, port, runs_dir, open_browser, token=None)`.
-- **`skill_ab_app.py`** (NEW) — **[design agent]** the frontend: `app_shell_html(token)`
+- **`skills_test_app.py`** (NEW) — **[design agent]** the frontend: `app_shell_html(token)`
   returning ONE self-contained SPA (router + 5 views) as Python strings; `_APP_CSS`
-  (reuse `skill_ab_harness._HTML_STYLE` for the design tokens, add app chrome:
+  (reuse `skills_test._HTML_STYLE` for the design tokens, add app chrome:
   sidebar, top bar, forms, live console, cell grid); `_APP_JS` (vanilla, talks to
   the API, renders the SSE stream). No external assets; dark mode via the inherited
   `prefers-color-scheme`.
-- **`test_skill_ab_server.py`** (NEW) — **[testing agent]** stdlib-only tests for
+- **`test_skills_test_server.py`** (NEW) — **[testing agent]** stdlib-only tests for
   routing, token auth, Host/Origin rejection, `RunRegistry` fan-out, SSE event
   framing, `discover_runs`, the estimate endpoint, and the demo/replay run
   end-to-end (no `claude`, no spend). Plus engine-hook tests added to
-  `test_skill_ab_harness.py`.
+  `test_skills_test.py`.
 
-`pyproject.toml`: add `skill_ab_server` and `skill_ab_app` to `py-modules`; keep
+`pyproject.toml`: add `skills_test_server` and `skills_test_app` to `py-modules`; keep
 `skills-test`/`skills-test quick` scripts. Bump `__version__` + `pyproject` to `0.3.0`.
 
 ## HTTP / SSE API contract (v1 — FROZEN; build to this)
@@ -131,7 +131,7 @@ replays from the start (a reconnect during a run must catch up, not miss cells).
 
 ## Engine hooks (FOUNDATION — exact signatures; lead implements first)
 
-In `skill_ab_harness.py`, all additive and backward-compatible:
+In `skills_test.py`, all additive and backward-compatible:
 
 1. `run_experiment(cfg, tasks, scorers=None, resume=False, on_event=None)` — when
    `on_event` is given, call `on_event(evt: dict)` at: experiment start (after
@@ -152,7 +152,7 @@ In `skill_ab_harness.py`, all additive and backward-compatible:
    dirs (skip, never raise).
 5. `main()`: add `sub.add_parser("serve", ...)` with `--port` (default 7878),
    `--runs-dir` (default `~/.skills-test/runs`), `--no-open`. Dispatch:
-   `from skill_ab_server import serve; serve(...)`. Import lazily inside the branch
+   `from skills_test_server import serve; serve(...)`. Import lazily inside the branch
    so the engine has no hard dependency on the server module.
 
 The server assigns each run a `run_id` and a `results_dir = runs_dir/<run_id>/`;
@@ -204,16 +204,16 @@ dir).
 
 | Purpose | Command | Expected |
 |---|---|---|
-| Tests | `python3 test_skill_ab_harness.py` ; `python3 test_skill_ab_server.py` | both end `N passed`, exit 0 |
-| Lint | `uvx ruff check skill_ab_harness.py skill_ab_server.py skill_ab_app.py test_skill_ab_server.py` | `All checks passed!` |
-| Smoke | `python3 skill_ab_harness.py serve --port 7879 --no-open &` then `curl -s localhost:7879/api/health` | `{"ok": true, ...}` |
+| Tests | `python3 test_skills_test.py` ; `python3 test_skills_test_server.py` | both end `N passed`, exit 0 |
+| Lint | `uvx ruff check skills_test.py skills_test_server.py skills_test_app.py test_skills_test_server.py` | `All checks passed!` |
+| Smoke | `python3 skills_test.py serve --port 7879 --no-open &` then `curl -s localhost:7879/api/health` | `{"ok": true, ...}` |
 | Demo E2E | `curl -s -XPOST localhost:7879/api/runs -H "X-Skill-AB-Token: <tok>" -d '{"demo":true,...}'` | `{"run_id": ...}`, events stream |
 
 ## Scope
 
-**In scope**: `skill_ab_harness.py` (hooks + serve wiring), `skill_ab_server.py`
-(new), `skill_ab_app.py` (new), `test_skill_ab_server.py` (new), engine-hook tests
-in `test_skill_ab_harness.py`, `pyproject.toml` (modules + version), `README.md`
+**In scope**: `skills_test.py` (hooks + serve wiring), `skills_test_server.py`
+(new), `skills_test_app.py` (new), `test_skills_test_server.py` (new), engine-hook tests
+in `test_skills_test.py`, `pyproject.toml` (modules + version), `README.md`
 (a "Local app" section). **Out of scope** (record as follow-ups, do not build):
 Docker sandboxing of `--from-github` runs; desktop (Tauri/Electron) packaging;
 multi-user/auth beyond the localhost token; hosted gallery. The badge/estimand/
@@ -222,12 +222,12 @@ stats logic is untouched.
 ## Steps (sequencing for the parallel build)
 
 1. **[lead] Foundation** — implement the engine hooks (signatures above) +
-   `discover_runs` + the `serve` subcommand stub that imports `skill_ab_server`.
+   `discover_runs` + the `serve` subcommand stub that imports `skills_test_server`.
    Keep all 80 tests green (`on_event=None` default). This unblocks the rest.
 2. **[parallel] Backend / Frontend / Tests** — three agents build
-   `skill_ab_server.py`, `skill_ab_app.py`, and `test_skill_ab_server.py` against
+   `skills_test_server.py`, `skills_test_app.py`, and `test_skills_test_server.py` against
    the frozen API + Event contract. The server imports `app_shell_html` from
-   `skill_ab_app`; both import only from `skill_ab_harness`.
+   `skills_test_app`; both import only from `skills_test`.
 3. **[lead] Integrate & verify** — run `skills-test serve`, hit `/api/health`, drive a
    **demo run**, confirm the SSE event sequence and the written run dir; open the
    app in a browser, screenshot every view, iterate on design until polished.
@@ -240,11 +240,11 @@ stats logic is untouched.
 
 ## Test plan
 
-- **Engine** (`test_skill_ab_harness.py`): `on_event` receives an ordered event
+- **Engine** (`test_skills_test.py`): `on_event` receives an ordered event
   stream from a stubbed run (monkeypatch `run_agent`/`execute_run` collaborators,
   not the whole `execute_run`); `discover_runs` finds/sorts/【tolerates-malformed】
   run dirs; the `serve` subcommand parses args without importing claude.
-- **Server** (`test_skill_ab_server.py`, stdlib `http.client` against a real
+- **Server** (`test_skills_test_server.py`, stdlib `http.client` against a real
   `ThreadingHTTPServer` on an ephemeral port): `/api/health` ok; missing/wrong
   token → 403; bad `Host` header → 403; cross-`Origin` POST → 403; `/api/estimate`
   returns the projected fields; a **demo** `POST /api/runs` returns a `run_id` and
@@ -256,13 +256,13 @@ stats logic is untouched.
 
 ## Done criteria
 
-- [ ] `python3 skill_ab_harness.py serve --port <p> --no-open` starts; `/api/health`
+- [ ] `python3 skills_test.py serve --port <p> --no-open` starts; `/api/health`
       returns `{"ok": true}`; binding is 127.0.0.1 only.
 - [ ] A **demo** run completes end-to-end in the browser: cell grid fills, live
       console streams, usage ticker moves, report opens — **zero spend**.
 - [ ] Security: no-token `/api/runs` POST → 403; foreign `Host` → 403; cross-`Origin`
       POST → 403. No `ANTHROPIC_API_KEY` / SDK reference anywhere in the serve path.
-- [ ] `python3 test_skill_ab_harness.py` and `python3 test_skill_ab_server.py` both
+- [ ] `python3 test_skills_test.py` and `python3 test_skills_test_server.py` both
       pass; `uvx ruff check` clean on all four files.
 - [ ] `pyproject.toml` lists the new modules; `__version__` == `0.3.0` in both files.
 - [ ] No external/CDN asset, no framework, no API-key path (stdlib + subscription).

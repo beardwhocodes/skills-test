@@ -1,9 +1,9 @@
 """
-Deterministic unit tests for the pure logic of skill_ab_harness.
+Deterministic unit tests for the pure logic of skills_test.
 
 No `claude`, no `git`, no network: these exercise the statistics, the ITT/PP
 validity rules, and the rewritten activation detector against synthetic events.
-Run: `python3 -m pytest -q` or `python3 test_skill_ab_harness.py`.
+Run: `python3 -m pytest -q` or `python3 test_skills_test.py`.
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-import skill_ab_harness as h
-from skill_ab_harness import Arm, ExperimentConfig, RunResult
+import skills_test as h
+from skills_test import Arm, ExperimentConfig, RunResult
 
 
 def _cfg(**kw) -> ExperimentConfig:
@@ -511,8 +511,8 @@ def test_treatment_panel_renders_and_escapes_hostile_inputs():
         assert "<img src=x onerror" not in doc
         assert "<script>alert('g')</script>" not in doc
         assert "&lt;script&gt;" in doc
-        # the load-bearing claim: guidance + prompt NEVER reach window.SKILL_AB
-        blob = _skill_ab_blob(doc)
+        # the load-bearing claim: guidance + prompt NEVER reach window.SKILLS_TEST
+        blob = _skills_test_blob(doc)
         blob_text = json.dumps(blob)
         assert "GUIDE_TKN" not in blob_text and "PROMPT_TKN" not in blob_text
         assert "treatments" not in blob
@@ -588,7 +588,7 @@ def test_cross_runner_report_downgrades_and_banners():
     assert h._pair_is_cross_runner(cfg, Arm.SKILL_ON, Arm.SKILL_B)
     man = h.experiment_manifest(cfg, timestamp=1.0, offline=True)
     doc = h.build_html_report(_three_arm_results(), h.Preflight(), cfg, man)
-    data = _skill_ab_blob(doc)
+    data = _skills_test_blob(doc)
     assert data["verdict"]["label"] == "suggestive"
     assert data["verdict"]["crossRunner"] is True
     assert data["meta"]["crossRunner"] is True
@@ -714,7 +714,7 @@ def test_inconclusive_verdict_does_not_assert_settled_headline():
             res.append(r)
     man = h.experiment_manifest(cfg, timestamp=1.0, offline=True)
     doc = h.build_html_report(res, h.Preflight(), cfg, man)
-    data = _skill_ab_blob(doc)
+    data = _skills_test_blob(doc)
     assert data["verdict"]["label"] == "inconclusive"
     # primary comparison CI clears 0 -> the bug condition is actually present
     prim = next(c for c in data["comparisons"] if c["key"] == data["meta"]["primaryPair"])
@@ -737,16 +737,16 @@ def test_build_html_report_survives_all_ties_judge_pair():
     assert "wrStr" in doc                          # the guard landed
 
 
-def _skill_ab_blob(doc: str) -> dict:
-    m = re.search(r"window\.SKILL_AB=(.+?);\n\(function\(\)\{", doc, re.S)
-    assert m, "window.SKILL_AB blob not found / injection boundary changed"
+def _skills_test_blob(doc: str) -> dict:
+    m = re.search(r"window\.SKILLS_TEST=(.+?);\n\(function\(\)\{", doc, re.S)
+    assert m, "window.SKILLS_TEST blob not found / injection boundary changed"
     return json.loads(m.group(1))   # already valid JSON (\/ escape is legal)
 
 
 def test_html_blob_shape_two_arm():
     cfg = _cfg()
     man = h.experiment_manifest(cfg, timestamp=1.0)
-    data = _skill_ab_blob(h.build_html_report(_two_task_results(), h.Preflight(), cfg, man))
+    data = _skills_test_blob(h.build_html_report(_two_task_results(), h.Preflight(), cfg, man))
     assert set(data) >= {"metrics", "primary", "dir", "arms", "armColors", "tasks",
                          "taskColors", "runs", "armMeans", "comparisons", "judge",
                          "verdict", "meta"}
@@ -770,7 +770,7 @@ def test_html_blob_shape_two_arm():
 def test_html_blob_shape_three_arm():
     cfg = _cfg(skill_name="skill-a", skill_b_src=Path("/s/b"), skill_b_name="skill-b")
     man = h.experiment_manifest(cfg, timestamp=1.0, offline=True)
-    data = _skill_ab_blob(
+    data = _skills_test_blob(
         h.build_html_report(_three_arm_results(), h.Preflight(), cfg, man))
     assert set(data["arms"]) == {"skill-a", "skill-b", "control"}
     keys = {c["key"] for c in data["comparisons"]}
@@ -787,7 +787,7 @@ def test_html_blob_judge_subblob_and_all_ties():
         _cmp("t", 0, "a_first", "my-skill"), _cmp("t", 0, "b_first", "my-skill"),
         _cmp("t", 1, "a_first", "tie"), _cmp("t", 1, "b_first", "tie"),
     ]
-    data = _skill_ab_blob(
+    data = _skills_test_blob(
         h.build_html_report(_two_task_results(), h.Preflight(), cfg, man, comparisons=comps))
     j = data["judge"]
     assert len(j) == 1                       # one pair key: my-skill_vs_control
@@ -802,7 +802,7 @@ def test_html_blob_judge_win_rate_null_when_no_decisive():
     cfg = _cfg()
     man = h.experiment_manifest(cfg, timestamp=1.0)
     comps = [_cmp("t", 0, "a_first", "tie"), _cmp("t", 0, "b_first", "tie")]
-    data = _skill_ab_blob(
+    data = _skills_test_blob(
         h.build_html_report(_two_task_results(), h.Preflight(), cfg, man, comparisons=comps))
     assert data["judge"][0]["win_rate_a"] is None   # nan -> JSON null
 
@@ -1026,7 +1026,7 @@ def test_work_products_renders_cmp_shell_per_task():
 def test_work_blob_carries_only_ids_counts_flags_never_diff_text():
     # LOAD-BEARING (plan 024 §1.4): the JSON blob must carry numbers/ids/flags only.
     # Plant a unique token in BOTH the diff code and the file path; it must be ABSENT
-    # from window.SKILL_AB yet present (escaped) in the server-rendered DOM.
+    # from window.SKILLS_TEST yet present (escaped) in the server-rendered DOM.
     cfg = _cfg()
     man = h.experiment_manifest(cfg, timestamp=1.0)
     token = "ZQX_PLANTED_SECRET_4242"
@@ -1034,9 +1034,9 @@ def test_work_blob_carries_only_ids_counts_flags_never_diff_text():
             f"--- a/{token}_path.py\n+++ b/{token}_path.py\n"
             f"@@ -1,1 +1,1 @@\n-was = '{token}_old'\n+now = '{token}_new'\n")
     doc = h.build_html_report(_results_with_diff(diff), h.Preflight(), cfg, man)
-    blob_text = re.search(r"window\.SKILL_AB=(.+?);\n\(function\(\)\{",
+    blob_text = re.search(r"window\.SKILLS_TEST=(.+?);\n\(function\(\)\{",
                           doc, re.S).group(1)
-    assert token not in blob_text, "diff text/path leaked into window.SKILL_AB"
+    assert token not in blob_text, "diff text/path leaked into window.SKILLS_TEST"
     assert token in doc, "diff token should still appear (escaped) in the DOM"
     data = json.loads(blob_text)
     work = data["work"]
@@ -1066,7 +1066,7 @@ def test_work_blob_honours_truncation_flag():
     for r in res:                      # mark the ON arm's diffs truncated
         if r.arm is Arm.SKILL_ON:
             r.diff_truncated = True
-    data = _skill_ab_blob(h.build_html_report(res, h.Preflight(), cfg, man))
+    data = _skills_test_blob(h.build_html_report(res, h.Preflight(), cfg, man))
     on_rep = data["work"]["A"]["arms"]["skill_on"]["rep"]
     off_rep = data["work"]["A"]["arms"]["skill_off"]["rep"]
     assert data["work"]["A"]["truncated"][on_rep] is True
@@ -1123,7 +1123,7 @@ def test_three_arm_report_renders_a_pane_per_arm():
     # arm-symmetric: a pane (and run picker) for each of the three arms
     for av in ("skill_on", "skill_b", "skill_off"):
         assert f'data-arm="{av}"' in doc
-    data = _skill_ab_blob(doc)
+    data = _skills_test_blob(doc)
     some_task = next(iter(data["work"].values()))
     assert set(some_task["arms"]) == {"skill_on", "skill_b", "skill_off"}
 
@@ -1947,7 +1947,7 @@ def test_estimates_identical_across_summary_and_html():
     seed = 7
     s = h.summary_dict(res, cfg, man, seed=seed)
     doc = h.build_html_report(res, h.Preflight(), cfg, man, seed=seed)
-    blob = json.loads(doc.split("window.SKILL_AB=", 1)[1].split(";\n", 1)[0])
+    blob = json.loads(doc.split("window.SKILLS_TEST=", 1)[1].split(";\n", 1)[0])
     pkey = s["primary_pair"]                      # skill-a_vs_skill-b == pair #3
     chart = next(c for c in blob["comparisons"] if c["key"] == pkey)
     # Primary metric CI must match BIT-for-BIT (summary uses ci_low/ci_high; the

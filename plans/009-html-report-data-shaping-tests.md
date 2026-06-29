@@ -8,8 +8,8 @@
 > yourself.
 >
 > **Drift check (run first)**: this repo is **not git-initialized**, so there is
-> no SHA to diff against. Instead, open `skill_ab_harness.py` and
-> `test_skill_ab_harness.py` and compare the "Current state" excerpts below
+> no SHA to diff against. Instead, open `skills_test.py` and
+> `test_skills_test.py` and compare the "Current state" excerpts below
 > (each marked with `file:line`) to the live code BEFORE editing. Line numbers
 > may have shifted; match on the code text, not the number. If any excerpt no
 > longer matches the live code, treat it as a STOP condition.
@@ -27,7 +27,7 @@
 
 The interactive `report.html` dashboard is the flagship artifact of this harness,
 but the Python that shapes the data it renders — `_chart_data`, `_verdict_blob`,
-and the `window.SKILL_AB=...` blob embedded by `build_html_report` — has **no
+and the `window.SKILLS_TEST=...` blob embedded by `build_html_report` — has **no
 direct test coverage**. The two existing HTML tests
 (`test_build_html_report_renders_and_escapes`, `test_demo_command_writes_offline`)
 only check scaffolding (`<html>`, `<table>`) and HTML-escaping; neither ever
@@ -43,11 +43,11 @@ when `node` is on PATH). It is **tests-only**: no production behavior changes.
 
 ## Current state
 
-Single production module `skill_ab_harness.py` (~3715 lines); tests live in
-`test_skill_ab_harness.py` and run via a custom stdlib runner (NOT pytest). The
+Single production module `skills_test.py` (~3715 lines); tests live in
+`test_skills_test.py` and run via a custom stdlib runner (NOT pytest). The
 relevant production code:
 
-**`_chart_data` — assembles the JSON the charts render from** (`skill_ab_harness.py:2964-3010`):
+**`_chart_data` — assembles the JSON the charts render from** (`skills_test.py:2964-3010`):
 
 ```python
 def _chart_data(results: list[RunResult], cfg: ExperimentConfig, metrics: list,
@@ -108,7 +108,7 @@ Two shape facts that drive the assertions:
   `nan == nan` is `False`, so a degenerate all-ties pair serializes as JSON
   `null` (Python `None`). This is the case to cover explicitly.
 
-**`_verdict_blob` — maps the badge verdict to the hero pill** (`skill_ab_harness.py:3013-3019`):
+**`_verdict_blob` — maps the badge verdict to the hero pill** (`skills_test.py:3013-3019`):
 
 ```python
 def _verdict_blob(verdict: dict | None) -> dict:
@@ -124,7 +124,7 @@ The two `[label]` dict lookups will `KeyError` on any label outside
 `{"verified","regressed","inconclusive"}`, and `verdict=None` defaults the label
 to `"inconclusive"`. Both behaviors must be pinned.
 
-**`build_html_report` — embeds the blob** (`skill_ab_harness.py:3107-3124, 3147`):
+**`build_html_report` — embeds the blob** (`skills_test.py:3107-3124, 3147`):
 
 ```python
     data = _chart_data(results, cfg, metrics, pairs, pair_itt, comparisons)
@@ -148,20 +148,20 @@ to `"inconclusive"`. Both behaviors must be pinned.
 ```
 
 The blob is injected as a single line inside a `<script>` tag, immediately
-followed by the JS bundle (`skill_ab_harness.py:3147`):
+followed by the JS bundle (`skills_test.py:3147`):
 
 ```python
-        f"<script>window.SKILL_AB={blob};\n{_HTML_SCRIPT}</script>",
+        f"<script>window.SKILLS_TEST={blob};\n{_HTML_SCRIPT}</script>",
 ```
 
-So the embedded JSON sits between the literal `window.SKILL_AB=` and `;\n(function(){`
-(`_HTML_SCRIPT` begins with `(function(){` — see `skill_ab_harness.py:2201`:
+So the embedded JSON sits between the literal `window.SKILLS_TEST=` and `;\n(function(){`
+(`_HTML_SCRIPT` begins with `(function(){` — see `skills_test.py:2201`:
 `_HTML_SCRIPT = r"""(function(){`). The `.replace("</", "<\\/")` turns any `</`
 inside the JSON into `<\/`, which is still **valid JSON** (`\/` is a legal escape),
 so `json.loads` parses the extracted blob directly with no un-escaping needed.
 
 The embedded JS is a raw ES5 IIFE; the chart/section functions whose presence is
-a cheap structural signal that the bundle is intact (`skill_ab_harness.py`):
+a cheap structural signal that the bundle is intact (`skills_test.py`):
 - `function leadSignal(){` (`:2339`)
 - `function barChart(m){` (`:2605`)
 - `function forestChart(m){` (`:2656`)
@@ -169,7 +169,7 @@ a cheap structural signal that the bundle is intact (`skill_ab_harness.py`):
 - `function judgeSection(){` (`:2778`)
 
 **Existing HTML tests — the pattern to extend, and proof they don't inspect the
-blob** (`test_skill_ab_harness.py:426-433` and `:499-504`):
+blob** (`test_skills_test.py:426-433` and `:499-504`):
 
 ```python
 def test_build_html_report_renders_and_escapes():
@@ -191,7 +191,7 @@ def test_demo_command_writes_offline():
     assert (out / "badge.svg").exists() and "verified" in (out / "badge.svg").read_text()
 ```
 
-**Test helpers you will reuse** (all already defined in `test_skill_ab_harness.py`):
+**Test helpers you will reuse** (all already defined in `test_skills_test.py`):
 
 - `_cfg(**kw)` (`:18-25`) — builds an `ExperimentConfig`; default is a 2-arm config
   (`skill_name="my-skill"`, control labelled `"control"`). Pass
@@ -209,7 +209,7 @@ def test_demo_command_writes_offline():
 - `h.experiment_manifest(cfg, timestamp=1.0)` (offline-safe; pass `offline=True` for
   3-arm to skip git/cli probing, mirroring `test_head_to_head_three_arm_summary` at `:380`).
 
-**`aggregate_judge` degenerate-tie behavior** (`skill_ab_harness.py:1554`): the
+**`aggregate_judge` degenerate-tie behavior** (`skills_test.py:1554`): the
 returned `win_rate_a` is `a_wins / decisive if decisive else float("nan")`. So a
 pair where every verdict is `"tie"` (winner_arm `"tie"`) has `decisive == 0` →
 `win_rate_a` is `nan` → `_chart_data` serializes it as `None`. A `JudgeComparison`
@@ -220,7 +220,7 @@ with `winner_arm="tie"` is the way to construct this.
 - **STDLIB-ONLY is a hard rule.** Do NOT add any dependency (no pytest, numpy,
   pandas, jinja, etc.). Python >= 3.11. New tests use only the stdlib (`re`,
   `json`, `shutil`, `subprocess`, `tempfile`, `pathlib`).
-- The test runner is custom (`_run_all` at `test_skill_ab_harness.py:728-734`): it
+- The test runner is custom (`_run_all` at `test_skills_test.py:728-734`): it
   collects every top-level `test_*` callable and calls it; a test "passes" by
   returning without raising. **There is no skip mechanism** — to "skip" (e.g. when
   `node` is absent), the test function simply `print(...)`s a note and `return`s
@@ -237,17 +237,17 @@ with `winner_arm="tie"` is the way to construct this.
 
 | Purpose   | Command                                          | Expected on success                    |
 |-----------|--------------------------------------------------|----------------------------------------|
-| Tests     | `python3 test_skill_ab_harness.py`               | ends with `N passed` (currently `53 passed`), exit 0, < 1s |
-| Lint      | `uvx ruff check skill_ab_harness.py`             | see Done criteria (pre-existing baseline noted below) |
-| Lint test | `uvx ruff check test_skill_ab_harness.py`        | see Done criteria                      |
+| Tests     | `python3 test_skills_test.py`               | ends with `N passed` (currently `53 passed`), exit 0, < 1s |
+| Lint      | `uvx ruff check skills_test.py`             | see Done criteria (pre-existing baseline noted below) |
+| Lint test | `uvx ruff check test_skills_test.py`        | see Done criteria                      |
 | node check| `command -v node`                                | prints a path if node exists, else nothing |
 
 Run all commands from the repo root `/Users/copyjosh/Code/skills-test`.
 
 **Pre-existing lint baseline (NOT introduced by you, OUT OF SCOPE to fix):**
-`uvx ruff check skill_ab_harness.py` currently reports exactly **4 `E702`**
+`uvx ruff check skills_test.py` currently reports exactly **4 `E702`**
 (multiple-statements-on-one-line / semicolon) errors at lines 1158, 1159, 3661,
-3663. `uvx ruff check test_skill_ab_harness.py` currently reports exactly **9
+3663. `uvx ruff check test_skills_test.py` currently reports exactly **9
 `E702`** errors. These are the repo's existing style (semicolons are used
 liberally) and are unrelated to this plan. Your job is to add **zero new** ruff
 errors, not to fix these.
@@ -255,10 +255,10 @@ errors, not to fix these.
 ## Scope
 
 **In scope** (the only file you should modify):
-- `test_skill_ab_harness.py` — add new test functions only.
+- `test_skills_test.py` — add new test functions only.
 
 **Out of scope** (do NOT touch):
-- `skill_ab_harness.py` — this is a tests-only plan. Do NOT change `_chart_data`,
+- `skills_test.py` — this is a tests-only plan. Do NOT change `_chart_data`,
   `_verdict_blob`, `build_html_report`, `_HTML_SCRIPT`, or anything else in the
   production module. If a test reveals a real bug in production code, that is a
   STOP condition (report it; do not fix it here).
@@ -269,7 +269,7 @@ errors, not to fix these.
 ## Git workflow
 
 This repo is **not git-initialized** (no `.git`, no branches). Just edit
-`test_skill_ab_harness.py` in place. Do not run `git` commands, do not create a
+`test_skills_test.py` in place. Do not run `git` commands, do not create a
 branch, do not commit.
 
 ## Steps
@@ -277,19 +277,19 @@ branch, do not commit.
 ### Step 1: Add a blob-extraction helper and a 2-arm shape test
 
 Near the existing HTML tests (after `test_build_html_report_renders_and_escapes`,
-around `test_skill_ab_harness.py:434`), add a small helper that pulls the embedded
+around `test_skills_test.py:434`), add a small helper that pulls the embedded
 JSON out of a rendered doc, plus the first test. Add `import re` mid-file with
 `# noqa: E402` if `re` is not already imported.
 
 Helper (the extraction is anchored on the literal injection boundary — the blob
-is one `json.dumps` line between `window.SKILL_AB=` and `;\n(function(){`; the
+is one `json.dumps` line between `window.SKILLS_TEST=` and `;\n(function(){`; the
 extracted text is already valid JSON despite the `</`→`<\/` replacement, so
 `json.loads` parses it directly):
 
 ```python
-def _skill_ab_blob(doc: str) -> dict:
-    m = re.search(r"window\.SKILL_AB=(.+?);\n\(function\(\)\{", doc, re.S)
-    assert m, "window.SKILL_AB blob not found / injection boundary changed"
+def _skills_test_blob(doc: str) -> dict:
+    m = re.search(r"window\.SKILLS_TEST=(.+?);\n\(function\(\)\{", doc, re.S)
+    assert m, "window.SKILLS_TEST blob not found / injection boundary changed"
     return json.loads(m.group(1))   # already valid JSON (\/ escape is legal)
 ```
 
@@ -299,7 +299,7 @@ Then the 2-arm test:
 def test_html_blob_shape_two_arm():
     cfg = _cfg()
     man = h.experiment_manifest(cfg, timestamp=1.0)
-    data = _skill_ab_blob(h.build_html_report(_two_task_results(), h.Preflight(), cfg, man))
+    data = _skills_test_blob(h.build_html_report(_two_task_results(), h.Preflight(), cfg, man))
     # top-level keys the in-page JS reads
     assert set(data) >= {"metrics", "primary", "dir", "arms", "armColors", "tasks",
                          "taskColors", "runs", "armMeans", "comparisons", "judge",
@@ -324,7 +324,7 @@ def test_html_blob_shape_two_arm():
     assert data["judge"] == []   # no comparisons passed -> empty judge sub-blob
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → ends with a higher `N passed`
+**Verify**: `python3 test_skills_test.py` → ends with a higher `N passed`
 count and exit 0; the line `ok  test_html_blob_shape_two_arm` appears.
 
 ### Step 2: Add a 3-arm (head-to-head) shape test
@@ -336,7 +336,7 @@ three pairwise comparisons appear in the blob and the primary pair is A vs B.
 def test_html_blob_shape_three_arm():
     cfg = _cfg(skill_name="skill-a", skill_b_src=Path("/s/b"), skill_b_name="skill-b")
     man = h.experiment_manifest(cfg, timestamp=1.0, offline=True)
-    data = _skill_ab_blob(
+    data = _skills_test_blob(
         h.build_html_report(_three_arm_results(), h.Preflight(), cfg, man))
     assert set(data["arms"]) == {"skill-a", "skill-b", "control"}
     keys = {c["key"] for c in data["comparisons"]}
@@ -347,7 +347,7 @@ def test_html_blob_shape_three_arm():
         assert "tests_pass" in c["itt"]
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → passes; `ok  test_html_blob_shape_three_arm`
+**Verify**: `python3 test_skills_test.py` → passes; `ok  test_html_blob_shape_three_arm`
 appears.
 
 ### Step 3: Add a judge-enabled test covering the degenerate all-ties pair
@@ -367,7 +367,7 @@ def test_html_blob_judge_subblob_and_all_ties():
         # degenerate pair: every verdict a tie -> no decisive -> win_rate_a null
         _cmp("t", 1, "a_first", "tie"), _cmp("t", 1, "b_first", "tie"),
     ]
-    data = _skill_ab_blob(
+    data = _skills_test_blob(
         h.build_html_report(_two_task_results(), h.Preflight(), cfg, man, comparisons=comps))
     j = data["judge"]
     assert len(j) == 1                       # one pair key: my-skill_vs_control
@@ -390,18 +390,18 @@ def test_html_blob_judge_win_rate_null_when_no_decisive():
     cfg = _cfg()
     man = h.experiment_manifest(cfg, timestamp=1.0)
     comps = [_cmp("t", 0, "a_first", "tie"), _cmp("t", 0, "b_first", "tie")]
-    data = _skill_ab_blob(
+    data = _skills_test_blob(
         h.build_html_report(_two_task_results(), h.Preflight(), cfg, man, comparisons=comps))
     assert data["judge"][0]["win_rate_a"] is None   # nan -> JSON null
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → both new tests appear as `ok`
+**Verify**: `python3 test_skills_test.py` → both new tests appear as `ok`
 and the suite passes.
 
 ### Step 4: Pin `_verdict_blob` directly (label → tone/text, and no KeyError)
 
 Call `h._verdict_blob` directly for each known label and for `None`. This guards
-the brittle dict lookups at `skill_ab_harness.py:3016-3018`.
+the brittle dict lookups at `skills_test.py:3016-3018`.
 
 ```python
 def test_verdict_blob_maps_each_label():
@@ -415,7 +415,7 @@ def test_verdict_blob_maps_each_label():
     assert h._verdict_blob(None)["label"] == "inconclusive"
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → `ok  test_verdict_blob_maps_each_label`.
+**Verify**: `python3 test_skills_test.py` → `ok  test_verdict_blob_maps_each_label`.
 
 ### Step 5: Add the light JS structural guard (function names present + optional `node --check`)
 
@@ -424,7 +424,7 @@ already imported. The test asserts the known JS function names are present in th
 rendered doc, then — ONLY if `node` is on PATH — extracts the full `<script>` body
 and runs `node --check` on it; otherwise it prints a note and returns (the custom
 runner counts that as a pass). `node --check` only parses (does not execute), so
-`window.SKILL_AB=...` referencing an undefined `window` is fine.
+`window.SKILLS_TEST=...` referencing an undefined `window` is fine.
 
 ```python
 def test_html_script_structural_and_optional_node_check():
@@ -453,7 +453,7 @@ Note: the rendered doc contains exactly one `<script>` block (the bundle); the
 non-greedy `(.+?)` with `re.S` captures it. If a future change adds a second
 `<script>`, this regex grabs the first — acceptable for this guard.
 
-**Verify**: `python3 test_skill_ab_harness.py` → `ok  test_html_script_structural_and_optional_node_check`
+**Verify**: `python3 test_skills_test.py` → `ok  test_html_script_structural_and_optional_node_check`
 appears (with the skip note printed if `node` is absent). Optionally confirm both
 paths: run once as-is, and if you have `node`, confirm no skip note prints.
 
@@ -462,18 +462,18 @@ paths: run once as-is, and if you have `node`, confirm no skip note prints.
 Confirm no new ruff errors and the whole suite passes.
 
 **Verify**:
-- `uvx ruff check test_skill_ab_harness.py` → still exactly **9 `E702`** and
+- `uvx ruff check test_skills_test.py` → still exactly **9 `E702`** and
   nothing else (you added no new violation; do not use semicolons-on-one-line in
   your new code).
-- `uvx ruff check skill_ab_harness.py` → still exactly **4 `E702`** (unchanged;
+- `uvx ruff check skills_test.py` → still exactly **4 `E702`** (unchanged;
   you did not touch the prod file).
-- `python3 test_skill_ab_harness.py` → ends with `N passed` where N is the old
+- `python3 test_skills_test.py` → ends with `N passed` where N is the old
   count plus the number of new tests (6 new tests if you added all of Steps 1–5),
   exit 0.
 
 ## Test plan
 
-New tests, all in `test_skill_ab_harness.py`, modeled after the existing HTML
+New tests, all in `test_skills_test.py`, modeled after the existing HTML
 tests (`test_build_html_report_renders_and_escapes` at `:426`) and reusing
 `_cfg` / `_two_task_results` / `_three_arm_results` / `_cmp`:
 
@@ -490,25 +490,25 @@ tests (`test_build_html_report_renders_and_escapes` at `:426`) and reusing
 - `test_html_script_structural_and_optional_node_check` — structural guard: JS
   function names present; optional `node --check` (skips cleanly when node absent).
 
-Plus the `_skill_ab_blob(doc)` extraction helper.
+Plus the `_skills_test_blob(doc)` extraction helper.
 
-Verification: `python3 test_skill_ab_harness.py` → all pass, including the 6 new
+Verification: `python3 test_skills_test.py` → all pass, including the 6 new
 tests; total goes from `53 passed` to `59 passed`.
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0 and ends with `59 passed`
+- [ ] `python3 test_skills_test.py` exits 0 and ends with `59 passed`
       (53 pre-existing + 6 new); the 6 new `ok  test_html_*` / `ok  test_verdict_blob_*`
       lines appear.
-- [ ] `uvx ruff check skill_ab_harness.py` reports **exactly the 4 pre-existing
+- [ ] `uvx ruff check skills_test.py` reports **exactly the 4 pre-existing
       `E702`** (lines 1158, 1159, 3661, 3663) and no other error — i.e. unchanged,
       because this plan does not modify the production module.
-- [ ] `uvx ruff check test_skill_ab_harness.py` reports **exactly the 9
+- [ ] `uvx ruff check test_skills_test.py` reports **exactly the 9
       pre-existing `E702`** and no NEW error (your added test code introduces no
       new ruff violation).
-- [ ] `skill_ab_harness.py` is byte-for-byte unchanged (tests-only plan).
+- [ ] `skills_test.py` is byte-for-byte unchanged (tests-only plan).
 - [ ] No new third-party dependency added (stdlib-only); `pyproject.toml`
       `dependencies = []` unchanged.
 
@@ -517,29 +517,29 @@ Machine-checkable. ALL must hold:
 Stop and report back (do not improvise) if:
 
 - Any "Current state" excerpt no longer matches the live code (the report
-  pipeline drifted) — in particular if the `window.SKILL_AB=...;\n(function(){`
-  injection boundary at `skill_ab_harness.py:3147` changed, or `_chart_data`'s
+  pipeline drifted) — in particular if the `window.SKILLS_TEST=...;\n(function(){`
+  injection boundary at `skills_test.py:3147` changed, or `_chart_data`'s
   returned keys / `itt` key names (`lo`/`hi`) changed, or `_verdict_blob`'s label
   set changed. The extraction regex and shape assertions depend on these exact
   forms.
 - A new test fails because the production code does something the plan claims it
   does not (e.g. `_verdict_blob` raises on a known label, or `win_rate_a` is NOT
   `None` for an all-ties pair). That is a real production bug — report it; do NOT
-  fix `skill_ab_harness.py` in this tests-only plan.
-- `uvx ruff check skill_ab_harness.py` shows MORE than the 4 documented `E702`
+  fix `skills_test.py` in this tests-only plan.
+- `uvx ruff check skills_test.py` shows MORE than the 4 documented `E702`
   errors before you start (the prod file drifted) — recheck the baseline and
   report.
 - A step's verification fails twice after a reasonable fix attempt.
-- Implementing any step appears to require editing `skill_ab_harness.py` or any
-  file outside `test_skill_ab_harness.py`.
+- Implementing any step appears to require editing `skills_test.py` or any
+  file outside `test_skills_test.py`.
 
 ## Maintenance notes
 
 For whoever owns the report after this lands:
 
-- These tests hard-code the embedded-blob injection boundary (`window.SKILL_AB=`
+- These tests hard-code the embedded-blob injection boundary (`window.SKILLS_TEST=`
   ... `;\n(function(){`) and the `itt` key names `lo`/`hi`. If you rename those or
-  change how the blob is embedded in `build_html_report`, update `_skill_ab_blob`
+  change how the blob is embedded in `build_html_report`, update `_skills_test_blob`
   and the shape assertions together — the tests are intentionally coupled to the
   contract the in-page JS reads.
 - The `node --check` guard is best-effort: it only runs where `node` is installed

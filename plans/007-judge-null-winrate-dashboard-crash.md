@@ -8,7 +8,7 @@
 > yourself.
 >
 > **Drift check (run first)**: this repo is NOT git-initialized, so there is no
-> SHA to diff against. Instead, open `skill_ab_harness.py` and compare the
+> SHA to diff against. Instead, open `skills_test.py` and compare the
 > "Current state" excerpts below (each tagged with `file:line`) to the live code
 > before editing. If the code at those locations no longer matches, treat it as a
 > STOP condition.
@@ -41,12 +41,12 @@ precondition and the guard.
 
 ## Current state
 
-Single module under change: `/Users/copyjosh/Code/skills-test/skill_ab_harness.py`
+Single module under change: `/Users/copyjosh/Code/skills-test/skills_test.py`
 (~3715 lines). The HTML report's JS lives INSIDE a Python raw triple-quoted string
 literal `_HTML_SCRIPT` (ES5 vanilla JS — `var`/`function`, no template literals, no
-backticks; lines stay under 100 columns). Tests: `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py`.
+backticks; lines stay under 100 columns). Tests: `/Users/copyjosh/Code/skills-test/test_skills_test.py`.
 
-**1. The NaN originates in `aggregate_judge` — `skill_ab_harness.py:1552-1555`:**
+**1. The NaN originates in `aggregate_judge` — `skills_test.py:1552-1555`:**
 
 ```python
         out[pkey] = {"a_label": la, "b_label": lb, "a_wins": a_wins, "b_wins": b_wins,
@@ -60,7 +60,7 @@ backticks; lines stay under 100 columns). Tests: `/Users/copyjosh/Code/skills-te
 so `decisive == 0` and `win_rate_a` is `float("nan")`. This is correct/honest and
 should NOT change.
 
-**2. The NaN becomes JSON `null` in `_chart_data` — `skill_ab_harness.py:2996-3005`:**
+**2. The NaN becomes JSON `null` in `_chart_data` — `skills_test.py:2996-3005`:**
 
 ```python
     judge = []
@@ -76,12 +76,12 @@ should NOT change.
 ```
 
 `(wr if wr == wr else None)` is the NaN-check (`NaN != NaN`), so `win_rate_a`
-lands in the `window.SKILL_AB` blob as `null`. This is also correct and should NOT
-change. The blob is serialized at `skill_ab_harness.py:3124`:
+lands in the `window.SKILLS_TEST` blob as `null`. This is also correct and should NOT
+change. The blob is serialized at `skills_test.py:3124`:
 `blob = json.dumps(data).replace("</", "<\\/")` (default separators, so the text
 `"win_rate_a": null` appears literally in the doc).
 
-**3. The crash is in the embedded JS `judgeSection()` — `skill_ab_harness.py:2778-2831`.**
+**3. The crash is in the embedded JS `judgeSection()` — `skills_test.py:2778-2831`.**
 Four UNGUARDED uses of `j.win_rate_a` (`null` flows straight through):
 
 ```javascript
@@ -113,7 +113,7 @@ Four UNGUARDED uses of `j.win_rate_a` (`null` flows straight through):
 
 (line 2826 — `.toFixed(2)` on `null` THROWS)
 
-**4. No `try/catch` around mount — `skill_ab_harness.py:2931-2938`:**
+**4. No `try/catch` around mount — `skills_test.py:2931-2938`:**
 
 ```javascript
   function mount(){
@@ -131,11 +131,11 @@ aborts the assignment and `#app` stays empty.
 
 **5. Reference data shapes (for the test):**
 
-- `JudgeComparison` dataclass — `skill_ab_harness.py:1351-1360`. Fields:
+- `JudgeComparison` dataclass — `skills_test.py:1351-1360`. Fields:
   `task_id`, `pair_id`, `ordering` (`"a_first"`|`"b_first"`), `winner_arm`
   (winning arm LABEL, `"tie"`, or `None`), `reason`, `pair` (e.g.
   `"my-skill_vs_control"`), `a_label`, `b_label`.
-- `build_html_report` signature — `skill_ab_harness.py:3077-3079`:
+- `build_html_report` signature — `skills_test.py:3077-3079`:
 
   ```python
   def build_html_report(results: list[RunResult], pf: Preflight, cfg: ExperimentConfig,
@@ -146,11 +146,11 @@ aborts the assignment and `#app` stays empty.
   Passing a non-empty `comparisons` list is what populates `D.judge` and exercises
   `judgeSection()`.
 
-**6. Test conventions** (`/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py`):
+**6. Test conventions** (`/Users/copyjosh/Code/skills-test/test_skills_test.py`):
 
 - Custom stdlib runner (NOT pytest); each top-level `def test_*` is collected and
-  run. Import alias is `import skill_ab_harness as h`.
-- Existing HTML test to MODEL AFTER — `test_skill_ab_harness.py:426-433`:
+  run. Import alias is `import skills_test as h`.
+- Existing HTML test to MODEL AFTER — `test_skills_test.py:426-433`:
 
   ```python
   def test_build_html_report_renders_and_escapes():
@@ -163,9 +163,9 @@ aborts the assignment and `#app` stays empty.
       assert "&lt;script&gt;" in doc and "<script>alert(1)" not in doc
   ```
 
-- `_two_task_results()` helper — `test_skill_ab_harness.py:334-341` — returns a
+- `_two_task_results()` helper — `test_skills_test.py:334-341` — returns a
   2-task / 2-arm `list[RunResult]` with `tests_pass` scores and diffs.
-- `_cmp(...)` helper for building `JudgeComparison`s — `test_skill_ab_harness.py:240-243`:
+- `_cmp(...)` helper for building `JudgeComparison`s — `test_skills_test.py:240-243`:
 
   ```python
   def _cmp(task, pid, ordering, winner, a="my-skill", b="control",
@@ -180,21 +180,21 @@ aborts the assignment and `#app` stays empty.
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Tests   | `python3 test_skill_ab_harness.py` | all pass (53 existing + your new test), exit 0, <1s, no claude/git/network |
-| Lint    | `uvx ruff check skill_ab_harness.py` | `All checks passed!`, exit 0 |
-| Lint test file | `uvx ruff check test_skill_ab_harness.py` | `All checks passed!`, exit 0 |
+| Tests   | `python3 test_skills_test.py` | all pass (53 existing + your new test), exit 0, <1s, no claude/git/network |
+| Lint    | `uvx ruff check skills_test.py` | `All checks passed!`, exit 0 |
+| Lint test file | `uvx ruff check test_skills_test.py` | `All checks passed!`, exit 0 |
 
 Run all commands from the repo root `/Users/copyjosh/Code/skills-test`.
 
 ## Scope
 
 **In scope** (the only files you may modify):
-- `/Users/copyjosh/Code/skills-test/skill_ab_harness.py` — the `judgeSection()` JS
+- `/Users/copyjosh/Code/skills-test/skills_test.py` — the `judgeSection()` JS
   inside `_HTML_SCRIPT` only (the region at lines 2784-2831).
-- `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py` — add ONE new test.
+- `/Users/copyjosh/Code/skills-test/test_skills_test.py` — add ONE new test.
 
 **Out of scope** (do NOT touch, even though they look related):
-- `aggregate_judge` (`skill_ab_harness.py:1552-1555`) — the `float("nan")` is the
+- `aggregate_judge` (`skills_test.py:1552-1555`) — the `float("nan")` is the
   correct honest value for "no decisive verdicts"; changing it would hide the
   signal and could break `build_judge_report`'s `wr == wr` text branch.
 - `_chart_data`'s `(wr if wr == wr else None)` (line 3003) — `null` is the correct
@@ -214,7 +214,7 @@ make. Edit the two in-scope files in place. Do not run `git init`.
 
 ### Step 1: Make `judgeSection()` null-safe in the embedded JS
 
-In `skill_ab_harness.py`, inside the `J.map(function(j){ ... })` callback in
+In `skills_test.py`, inside the `J.map(function(j){ ... })` callback in
 `judgeSection()` (starts at line 2784), introduce a single normalized win-rate and
 a display string at the TOP of the callback, then route every use of
 `j.win_rate_a` through them. Keep ES5 style (`var`/`function`, no template
@@ -251,18 +251,18 @@ keeps lines < 100 cols): when `ndec`, swap the `win-rate A` label text for a sho
 Do NOT change `aggregate_judge` or `_chart_data`.
 
 **Verify**:
-- `grep -n "win_rate_a.toFixed" skill_ab_harness.py` → no matches (both unguarded
+- `grep -n "win_rate_a.toFixed" skills_test.py` → no matches (both unguarded
   `.toFixed` sites are gone).
-- `grep -n "wrStr" skill_ab_harness.py` → at least the definition plus the two
+- `grep -n "wrStr" skills_test.py` → at least the definition plus the two
   display uses.
-- `uvx ruff check skill_ab_harness.py` → `All checks passed!`
+- `uvx ruff check skills_test.py` → `All checks passed!`
 
 ### Step 2: Add a regression test for the all-ties pair
 
 Tests cannot execute the embedded JS, so assert on (a) the Python-produced JSON
 blob containing the crash precondition (`win_rate_a` is `null`), and (b) the
 presence of the guard token (`wrStr`) in the rendered doc, plus (c) the page
-shell still renders. Add ONE test to `test_skill_ab_harness.py`, near
+shell still renders. Add ONE test to `test_skills_test.py`, near
 `test_build_html_report_renders_and_escapes` (after line 433). Model it on that
 test and use the existing `_cfg()`, `_two_task_results()`, and `_cmp()` helpers.
 
@@ -292,32 +292,32 @@ Notes:
 - The `"wrStr" in doc` assertion is the part that FAILS before Step 1 and PASSES
   after — it is the real regression anchor.
 
-**Verify**: `python3 test_skill_ab_harness.py` → all pass including the new test.
+**Verify**: `python3 test_skills_test.py` → all pass including the new test.
 
 ## Test plan
 
-- New test in `test_skill_ab_harness.py`:
+- New test in `test_skills_test.py`:
   `test_build_html_report_survives_all_ties_judge_pair` — covers the regression:
   an all-ties judge pair produces `"win_rate_a": null` in the blob and the doc
   still contains the page shell and the `wrStr` guard token.
 - Structural pattern to copy: `test_build_html_report_renders_and_escapes`
-  (`test_skill_ab_harness.py:426`), reusing helpers `_cfg`, `_two_task_results`,
+  (`test_skills_test.py:426`), reusing helpers `_cfg`, `_two_task_results`,
   `_cmp`.
 - The happy path (a decisive judge pair) is already covered by existing judge
   tests (`test_aggregate_consistent_preference`,
   `test_build_judge_report_empty_and_basic`); no new happy-path test needed.
-- Verification: `python3 test_skill_ab_harness.py` → all pass (existing 53 + 1 new).
+- Verification: `python3 test_skills_test.py` → all pass (existing 53 + 1 new).
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0; the new test
+- [ ] `python3 test_skills_test.py` exits 0; the new test
       `test_build_html_report_survives_all_ties_judge_pair` exists and passes.
-- [ ] `uvx ruff check skill_ab_harness.py` prints `All checks passed!` (exit 0).
-- [ ] `uvx ruff check test_skill_ab_harness.py` prints `All checks passed!` (exit 0).
-- [ ] `grep -n "win_rate_a.toFixed" skill_ab_harness.py` returns no matches.
-- [ ] `grep -n "wrStr" skill_ab_harness.py` returns at least one match.
+- [ ] `uvx ruff check skills_test.py` prints `All checks passed!` (exit 0).
+- [ ] `uvx ruff check test_skills_test.py` prints `All checks passed!` (exit 0).
+- [ ] `grep -n "win_rate_a.toFixed" skills_test.py` returns no matches.
+- [ ] `grep -n "wrStr" skills_test.py` returns at least one match.
 - [ ] No files outside the in-scope list are modified.
 - [ ] No new imports/dependencies added (stdlib-only preserved).
 - [ ] `plans/README.md` row added by the reviewer (you did NOT edit it).
@@ -343,7 +343,7 @@ Stop and report back (do not improvise) if:
 For whoever owns this code next:
 - If the embedded report is ever migrated to render `judgeSection()` via a path
   that DOES throw outside the single `innerHTML` assignment (e.g. per-row
-  rendering), revisit whether `mount()` (`skill_ab_harness.py:2931`) should also
+  rendering), revisit whether `mount()` (`skills_test.py:2931`) should also
   wrap the assignment in a `try/catch` as defense-in-depth. This plan deliberately
   fixes the data-handling bug at the source (`judgeSection`) rather than masking
   it with a catch-all.

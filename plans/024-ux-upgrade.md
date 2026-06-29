@@ -4,15 +4,15 @@
 
 # skills-test UX Upgrade — Build Spec + Roadmap
 
-Single consolidated spec. The diff viewer is the winning **GitHub Split** design with the judge-approved grafts folded in (contrast band, divergence map, beat captions, diff-of-diffs mode, canvas minimap, mandatory reduced-motion gate). All work stays stdlib-only, one self-contained offline HTML file, escaped-server-side, both themes, no telemetry. Source anchors verified against the live files (`skill_ab_harness.py` 213 KB, `skill_ab_app.py`, `skill_ab_server.py`).
+Single consolidated spec. The diff viewer is the winning **GitHub Split** design with the judge-approved grafts folded in (contrast band, divergence map, beat captions, diff-of-diffs mode, canvas minimap, mandatory reduced-motion gate). All work stays stdlib-only, one self-contained offline HTML file, escaped-server-side, both themes, no telemetry. Source anchors verified against the live files (`skills_test.py` 213 KB, `skills_test_app.py`, `skills_test_server.py`).
 
 ---
 
 ## 1. The interactive diff viewer (centerpiece)
 
-Replaces the flat `_diff_to_html` (`skill_ab_harness.py:2307`) + independent-columns `_work_products_html` (`:3585`) with a parsed, line-numbered, file-navigable, word-highlighted diff UI that makes arm-vs-arm comparison the primary object. The diff text **never** enters `window.SKILL_AB` (built at `:3711`) and **never** reaches `innerHTML` of raw text. All markup is emitted server-side into `server_detail`, appended after `#app` (`:3706`–`3711`), so `mount()` (which only rewrites `#app.innerHTML`) never clobbers it and the serve SPA inherits it for free via the Results iframe (`skill_ab_app.py:1157`).
+Replaces the flat `_diff_to_html` (`skills_test.py:2307`) + independent-columns `_work_products_html` (`:3585`) with a parsed, line-numbered, file-navigable, word-highlighted diff UI that makes arm-vs-arm comparison the primary object. The diff text **never** enters `window.SKILLS_TEST` (built at `:3711`) and **never** reaches `innerHTML` of raw text. All markup is emitted server-side into `server_detail`, appended after `#app` (`:3706`–`3711`), so `mount()` (which only rewrites `#app.innerHTML`) never clobbers it and the serve SPA inherits it for free via the Results iframe (`skills_test_app.py:1157`).
 
-### 1.1 Server-side parse model (new code in `skill_ab_harness.py`)
+### 1.1 Server-side parse model (new code in `skills_test.py`)
 
 Add a pure parser + renderer. No regex on the *content*, only on diff control lines.
 
@@ -113,7 +113,7 @@ The diff DOM is pre-rendered; the JSON blob (`:3711`) stays free-text-free. It g
 
 1. Every code cell = `html.escape(text)`. Word spans escape **each `get_opcodes()` segment before** wrapping in the literal `<span class="w">` — no user byte is ever interpolated unescaped.
 2. JS never assigns `innerHTML` from diff text. **Split** view = `cloneNode(true)` of already-escaped `.tx` nodes bucketed by `data-pair`/`data-side` into a 4-col grid `[old# | old code | new# | new code]`. **Search** = walk `.tx` text nodes, wrap matches with `<mark>` via DOM `Range`/`splitText`+`createElement` (clear via `normalize()`). **Copy** = read `.textContent` (decodes escaped HTML back to literal source, inert) joined with signs. **File rail** = `getAttribute('data-*')` + `textContent` writes only.
-3. Diff text stays out of `window.SKILL_AB` entirely; only counts/ids/flags ride the blob.
+3. Diff text stays out of `window.SKILLS_TEST` entirely; only counts/ids/flags ride the blob.
 
 ### 1.5 Interactions (one `DiffViewer` IIFE appended to `_HTML_SCRIPT` at `:2684`, invoked beside `wireTooltip()`)
 
@@ -136,7 +136,7 @@ The diff DOM is pre-rendered; the JSON blob (`:3711`) stays free-text-free. It g
 
 New tokens in `:root` **and** the dark `@media` (`:2349`): `--hunk`, `--w-add`, `--w-del`, `--diverge`, `--accent` (replaces hardcoded `.hunk{color:#8957e5}` at `:2646` and tab10 blue). Rows = CSS grid `[ln ln sg tx]`; `.ln,.sg{user-select:none}` so copy excludes gutter; `position:sticky` left gutter + sticky `.file-head`; add/del get a **left accent border** instead of full-bleed 12%-alpha wash; `.w` uses the stronger word tokens; `:focus-visible` ring on summaries/buttons/gutters; **mandatory** `@media (prefers-reduced-motion:reduce)` gate for `.hl` flash/scroll/overlay (graft — report has none today).
 
-### 1.8 Tests (extend `test_skill_ab_harness.py`, stdlib)
+### 1.8 Tests (extend `test_skills_test.py`, stdlib)
 
 `parse_unified_diff` line-number seeding on a crafted multi-file/multi-hunk diff; `word_diff_pairs` `pair_idx`/`data-pair` faithfulness + per-segment escaping (assert `<` in a renamed identifier emerges as `&lt;` inside `.w`); ratio-gate + 400-char cap fallbacks; `diffofdiffs` agree/a-only/b-only counts; truncation marker emitted when `len(stdout) >= judge_max_diff_chars`.
 
@@ -150,7 +150,7 @@ Make the *independent variable itself* legible: both arms ran the same `claude -
 
 Do **not** touch `RunResult.to_dict` (`:422`) — it is written K×tasks×arms and already carries `diff`; adding multi-KB guidance there bloats `results.jsonl`. Instead add a top-level **`treatments`** block to `experiment_manifest()` (`:1998`), computed once, already embedded into `summary.json` and passed to `build_html_report`.
 
-**Signature change:** `experiment_manifest(cfg, seed=0, timestamp=..., offline=False, tasks=None)`. Thread `tasks` at every call site that has them: `_run_and_outputs` (`:3925`), the `report` subcommand (`:4271`, tasks from `load_config`), and widen `_finalize_run` (`skill_ab_server.py:383`) to accept/forward `tasks` from its caller `_run_real` (`:413`). Offline/demo paths skip subprocess/file IO but still emit `shared_prompt` + skill identity (pure from cfg+SKILL.md).
+**Signature change:** `experiment_manifest(cfg, seed=0, timestamp=..., offline=False, tasks=None)`. Thread `tasks` at every call site that has them: `_run_and_outputs` (`:3925`), the `report` subcommand (`:4271`, tasks from `load_config`), and widen `_finalize_run` (`skills_test_server.py:383`) to accept/forward `tasks` from its caller `_run_real` (`:413`). Offline/demo paths skip subprocess/file IO but still emit `shared_prompt` + skill identity (pure from cfg+SKILL.md).
 
 ```python
 treatments = {
@@ -174,7 +174,7 @@ treatments = {
 
 ### 2.3 Render — server-side + escaped (new `_treatment_inputs_html`)
 
-Add next to `_work_products_html` (`:3585`); `html.escape()` the prompt, every argv token, the guidance body, and skill identity. **Prepend** to `server_detail` at `:3690` so it lands in the static body **outside** `#app` — guidance text never enters `window.SKILL_AB` nor any `innerHTML`-of-raw path. No `skill_ab_app.py` change (Results iframes report.html).
+Add next to `_work_products_html` (`:3585`); `html.escape()` the prompt, every argv token, the guidance body, and skill identity. **Prepend** to `server_detail` at `:3690` so it lands in the static body **outside** `#app` — guidance text never enters `window.SKILLS_TEST` nor any `innerHTML`-of-raw path. No `skills_test_app.py` change (Results iframes report.html).
 
 Guided "only thing that differed" layout, reusing `.section-h`/`.det`/`.cols`/`.col`/`.mono`:
 1. One **shared** block: `claude -p "<prompt>"` (escaped; `<details>` if long).
@@ -185,7 +185,7 @@ Guided "only thing that differed" layout, reusing `.section-h`/`.det`/`.cols`/`.
 
 ## 3. Guided user flows (ranked by impact)
 
-1. **[app] Errored/aborted runs must not iframe raw 404 JSON.** `viewResults` (`skill_ab_app.py:1138`) frames `/api/runs/<id>/report` unconditionally, but report.html only exists on success (`_finalize_run`, `skill_ab_server.py:392`); error/abort paths terminate without it, so `_send_file` returns `{"error":"not found"},404` (`:657`) into the frame. **Fix:** before framing, check status from `/api/runs` (or HEAD the report); on error/aborted/404 render an error card (verdict pill + failure message + "Start a new run" / "Back to Dashboard") and add an `onerror`/load-timeout iframe fallback. *(high)*
+1. **[app] Errored/aborted runs must not iframe raw 404 JSON.** `viewResults` (`skills_test_app.py:1138`) frames `/api/runs/<id>/report` unconditionally, but report.html only exists on success (`_finalize_run`, `skills_test_server.py:392`); error/abort paths terminate without it, so `_send_file` returns `{"error":"not found"},404` (`:657`) into the frame. **Fix:** before framing, check status from `/api/runs` (or HEAD the report); on error/aborted/404 render an error card (verdict pill + failure message + "Start a new run" / "Back to Dashboard") and add an `onerror`/load-timeout iframe fallback. *(high)*
 2. **[app] Surface `claude` pre-flight on the New-run path.** `viewNew` (`:614`) never reads health; a novice configures, Estimates (always succeeds — it's a projection), Starts, and only discovers `claude` missing as a failed Live run. **Fix:** call/cached-read `refreshHealth` (`:530`); when `claude_on_path` false (`server:764`) show a warning banner + disable the real Start (leave the demo button active). *(high)*
 3. **[app] Progressive disclosure on the New-run form.** ~10 controls dumped flat (`:836`–`896`). **Fix:** wrap expert controls (Agent CLI · Arm B, Isolation, cost ceiling, blind judge, per-arm Model B) in `<details class="advanced"><summary>Advanced options</summary>`, collapsed by default; leave Skill A, Target, Prompt, k visible. Pure HTML/CSS. *(high)*
 4. **[app] Inline required-field validation.** Skill A is mandatory with no marker; the only feedback is a 4.2s corner toast (`:778`–`784`, auto-removed `:442`). **Fix:** required asterisk on Skill A (+ conditional Prompt); in `badInputs()` set `aria-invalid` + a persistent `.field-error` span under the field, cleared on next input. *(high)*
@@ -239,4 +239,4 @@ Diff viewer + treatment panel first (the explicit asks).
 | 18 | Results verdict headline + iframe loading overlay | [app] | Answer "did A beat B?" up front | **S** |
 | 19 | Live progress/elapsed header; Dashboard auto-refresh; "How it works" onboarding card | [app] | Live + first-run guidance | **M** |
 
-Relevant files (all absolute): `/Users/copyjosh/Code/skills-test/skill_ab_harness.py`, `/Users/copyjosh/Code/skills-test/skill_ab_app.py`, `/Users/copyjosh/Code/skills-test/skill_ab_server.py`, `/Users/copyjosh/Code/skills-test/test_skill_ab_harness.py`, `/Users/copyjosh/Code/skills-test/test_skill_ab_server.py`.
+Relevant files (all absolute): `/Users/copyjosh/Code/skills-test/skills_test.py`, `/Users/copyjosh/Code/skills-test/skills_test_app.py`, `/Users/copyjosh/Code/skills-test/skills_test_server.py`, `/Users/copyjosh/Code/skills-test/test_skills_test.py`, `/Users/copyjosh/Code/skills-test/test_skills_test_server.py`.

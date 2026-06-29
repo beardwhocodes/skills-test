@@ -4,7 +4,7 @@
 > moving on. Honor STOP conditions. Update this plan's row in `plans/README.md`
 > when done.
 >
-> **Drift check (run first)**: repo is not git-tracked. Open `skill_ab_harness.py`
+> **Drift check (run first)**: repo is not git-tracked. Open `skills_test.py`
 > and confirm the "Current state" excerpts (`build_report` header, `DiffEstimate`,
 > `run_experiment`) still match before editing. Mismatch → STOP.
 
@@ -30,19 +30,19 @@ manifest kills the "which X?" dismissal; the JSON is the substrate the badge
 
 ## Current state
 
-- `build_report(results, pf, cfg, scorers=None, seed=0)` (`skill_ab_harness.py:928`)
+- `build_report(results, pf, cfg, scorers=None, seed=0)` (`skills_test.py:928`)
   — returns a Markdown string. Its header today (around lines 950–956) prints only:
   ```python
   f"# skills-test report — `{cfg.skill_name}`",
   f"model: {cfg.model} | k: {cfg.k}/arm/task | bootstrap: {cfg.bootstrap_iters:,} ...",
   ```
-- `class DiffEstimate` (`skill_ab_harness.py:765`, `@dataclass`) — fields:
+- `class DiffEstimate` (`skills_test.py:765`, `@dataclass`) — fields:
   `metric, mean_on, mean_off, point, ci_low, ci_high, p_value, n_on, n_off,
   n_tasks, clustered, q_value`. Already serialization-ready (all scalars).
 - `estimate_diff(results, metric, mode, cfg, rng)` (`:876`) returns a
   `DiffEstimate | None`. `build_report` calls it per metric for `"itt"` and `"pp"`.
 - `run_experiment` (`:725`) writes `results_dir/results.jsonl`; `cfg.results_dir`
-  exists (default `/tmp/skill_ab_results`).
+  exists (default `/tmp/skills_test_results`).
 - `cfg.repo_path`, `cfg.base_ref`, `cfg.skill_src`, `cfg.skill_name`, `cfg.model`,
   `cfg.bootstrap_iters`, `cfg.permutation_iters`, `cfg.bootstrap_alpha` all exist.
 - `_git(repo, args)` (`:279`) runs `git -C repo …` and returns a CompletedProcess.
@@ -53,16 +53,16 @@ manifest kills the "which X?" dismissal; the JSON is the substrate the badge
 
 | Purpose | Command | Expected |
 |---|---|---|
-| Compile | `python3 -m py_compile skill_ab_harness.py test_skill_ab_harness.py` | exit 0 |
-| Tests | `python3 test_skill_ab_harness.py` | `N passed` |
+| Compile | `python3 -m py_compile skills_test.py test_skills_test.py` | exit 0 |
+| Tests | `python3 test_skills_test.py` | `N passed` |
 | Line length | the `python3 - <<'PY' …` snippet from plan 001 Step 5 | `OK` |
 
 ## Scope
 
 **In scope:**
-- `skill_ab_harness.py` — add `__version__`, `experiment_manifest()`,
+- `skills_test.py` — add `__version__`, `experiment_manifest()`,
   `summary_dict()`, `write_summary()`, and a manifest block in `build_report`.
-- `test_skill_ab_harness.py` — tests for `summary_dict` shape + manifest keys.
+- `test_skills_test.py` — tests for `summary_dict` shape + manifest keys.
 - `results.schema.json` (new file at repo root) — the JSON Schema for `summary.json`.
 
 **Out of scope:**
@@ -74,11 +74,11 @@ manifest kills the "which X?" dismissal; the JSON is the substrate the badge
 
 ### Step 1: Add a version constant
 
-Near the top of `skill_ab_harness.py` (after the docstring/imports):
+Near the top of `skills_test.py` (after the docstring/imports):
 ```python
 __version__ = "0.1.0"   # keep in sync with pyproject.toml
 ```
-**Verify**: `python3 -c "import skill_ab_harness as h; print(h.__version__)"` → `0.1.0`.
+**Verify**: `python3 -c "import skills_test as h; print(h.__version__)"` → `0.1.0`.
 
 ### Step 2: Build the manifest
 
@@ -122,7 +122,7 @@ Add `import hashlib` to the import block if not present.
 **Verify**:
 ```bash
 python3 -c "
-import skill_ab_harness as h; from pathlib import Path
+import skills_test as h; from pathlib import Path
 cfg=h.ExperimentConfig(repo_path=Path('/r'),base_ref='main',skill_src=Path('/s/k'),skill_name='k')
 m=h.experiment_manifest(cfg, seed=7, timestamp=123.0)
 assert m['harness_version']=='0.1.0' and m['seed']==7 and m['timestamp']==123.0
@@ -207,7 +207,7 @@ and right after the existing first two header lines, insert:
 (Place this insertion immediately after the existing header lines and before the
 `## Validity` section. `L` is the running list of report lines.)
 
-**Verify**: `python3 skill_ab_harness.py run --example` (from plan 001) — the
+**Verify**: `python3 skills_test.py run --example` (from plan 001) — the
 printed report now contains a "reproducibility manifest" block. If plan 001 isn't
 landed yet, call `build_report(results, pf, cfg)` directly in a REPL.
 
@@ -243,9 +243,9 @@ def test_manifest_and_summary_shape():
     assert "tests_pass" in s["itt"] and "ci_low" in s["itt"]["tests_pass"]
     assert set(["on_valid", "off_valid", "off_contaminated"]) <= set(s["validity"])
 ```
-(`_cfg` and `_rr` already exist in `test_skill_ab_harness.py`; reuse them.)
+(`_cfg` and `_rr` already exist in `test_skills_test.py`; reuse them.)
 
-**Verify**: `python3 test_skill_ab_harness.py` → `N passed` (1 new test); line-length `OK`.
+**Verify**: `python3 test_skills_test.py` → `N passed` (1 new test); line-length `OK`.
 
 ## Test plan
 
@@ -262,7 +262,7 @@ def test_manifest_and_summary_shape():
 - [ ] `summary_dict` has `schema_version`, `manifest`, `itt`, `per_protocol`, `validity`
 - [ ] `results.schema.json` exists and parses
 - [ ] report contains a "reproducibility manifest" block
-- [ ] `python3 test_skill_ab_harness.py` passes incl. the new test
+- [ ] `python3 test_skills_test.py` passes incl. the new test
 - [ ] line-length `OK`
 - [ ] `plans/README.md` row for 002 updated
 

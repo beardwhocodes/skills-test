@@ -24,7 +24,7 @@
 ## Why this matters
 
 The repo ships a single GitHub Actions workflow (`.github/workflows/skills-test.yml`)
-whose only job runs the **paid** `python skill_ab_harness.py ci` command (it spends
+whose only job runs the **paid** `python skills_test.py ci` command (it spends
 real money calling `claude -p` and needs `ANTHROPIC_API_KEY`). It is gated behind a
 label / `workflow_dispatch`, so nothing runs on an ordinary push or PR. That means
 the cheap, deterministic guards — `ruff` lint and the stdlib test suite — never run
@@ -38,9 +38,9 @@ cost, and the lint baseline is clean.
 
 Files involved:
 
-- `skill_ab_harness.py` — the single ~3715-line module under test. Has **4** ruff
+- `skills_test.py` — the single ~3715-line module under test. Has **4** ruff
   `E702` (multiple-statements-on-one-line / semicolon) errors.
-- `test_skill_ab_harness.py` — the stdlib test runner (53 tests). Has **9** ruff
+- `test_skills_test.py` — the stdlib test runner (53 tests). Has **9** ruff
   `E702` errors.
 - `.github/workflows/skills-test.yml` — the existing PAID A/B gate. Leave it untouched.
 - `pyproject.toml` — already configures `[tool.ruff]` with `line-length = 100`, so a
@@ -50,17 +50,17 @@ Files involved:
 ### IMPORTANT drift / scope note (read this)
 
 The original framing of this task assumed **4** E702 errors (only in
-`skill_ab_harness.py`). Recon found that `test_skill_ab_harness.py` has **9 more**
-E702 errors. Because the new CI gate runs `ruff check skill_ab_harness.py
-test_skill_ab_harness.py` (both files), leaving the test file's 9 errors would make
+`skills_test.py`). Recon found that `test_skills_test.py` has **9 more**
+E702 errors. Because the new CI gate runs `ruff check skills_test.py
+test_skills_test.py` (both files), leaving the test file's 9 errors would make
 the new gate **red on its very first run**, defeating the purpose. Therefore this
 plan fixes **all 13** E702 sites (4 in the module + 9 in the test file). All are
 pure formatting changes — splitting a semicolon-joined line into two lines — with
 **zero behavior change**.
 
-### The 4 E702 sites in `skill_ab_harness.py`
+### The 4 E702 sites in `skills_test.py`
 
-Inside `cluster_permutation_p` (the permutation loop), `skill_ab_harness.py:1158-1159`:
+Inside `cluster_permutation_p` (the permutation loop), `skills_test.py:1158-1159`:
 
 ```python
             son += sum(a); non += len(a)
@@ -68,7 +68,7 @@ Inside `cluster_permutation_p` (the permutation loop), `skill_ab_harness.py:1158
 ```
 (These two lines are indented 12 spaces, inside `for ov, fv, k in counts:`.)
 
-Inside `main()`'s command dispatch, `skill_ab_harness.py:3660-3663`:
+Inside `main()`'s command dispatch, `skills_test.py:3660-3663`:
 
 ```python
     if args.cmd == "init":
@@ -78,9 +78,9 @@ Inside `main()`'s command dispatch, `skill_ab_harness.py:3660-3663`:
 ```
 (The two offending lines are indented 8 spaces, inside their `if` blocks.)
 
-### The 9 E702 sites in `test_skill_ab_harness.py`
+### The 9 E702 sites in `test_skills_test.py`
 
-`test_skill_ab_harness.py:292-294` (indented 4 spaces, in `test_judge_report_coverage_line`):
+`test_skills_test.py:292-294` (indented 4 spaces, in `test_judge_report_coverage_line`):
 
 ```python
     on_with = _rr(Arm.SKILL_ON, True, scores={}); on_with.diff = "d"
@@ -88,20 +88,20 @@ Inside `main()`'s command dispatch, `skill_ab_harness.py:3660-3663`:
     off_with = _rr(Arm.SKILL_OFF, None, scores={}); off_with.diff = "d"
 ```
 
-`test_skill_ab_harness.py:338-339` (indented 12 spaces, in a nested `for`):
+`test_skills_test.py:338-339` (indented 12 spaces, in a nested `for`):
 
 ```python
             r = _rr(arm, arm is Arm.SKILL_ON, scores={"tests_pass": v}); r.task_id = t
             r.diff = f"diff {t} {arm.value}\n+x"; r.cost_usd = 0.05
 ```
 
-`test_skill_ab_harness.py:420` (indented 4 spaces, in `test_runresult_from_dict_round_trips`):
+`test_skills_test.py:420` (indented 4 spaces, in `test_runresult_from_dict_round_trips`):
 
 ```python
     r = _rr(Arm.SKILL_ON, True, scores={"tests_pass": 1.0}); r.diff = "diff --git a b\n+x"
 ```
 
-`test_skill_ab_harness.py:617` and `:619` (indented 4 spaces):
+`test_skills_test.py:617` and `:619` (indented 4 spaces):
 
 ```python
     npm = Path(tempfile.mkdtemp()); (npm / "package.json").write_text("{}")
@@ -110,7 +110,7 @@ Inside `main()`'s command dispatch, `skill_ab_harness.py:3660-3663`:
     go = Path(tempfile.mkdtemp()); (go / "go.mod").write_text("module x")
 ```
 
-`test_skill_ab_harness.py:718` (indented 8 spaces, in a `for`):
+`test_skills_test.py:718` (indented 8 spaces, in a `for`):
 
 ```python
         r = _rr(arm, arm is Arm.SKILL_ON, scores={"tests_pass": v}); r.task_id = "only"
@@ -144,10 +144,10 @@ The new workflow you add is a **separate file** and must NOT touch this one.
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Lint the module | `uvx ruff check skill_ab_harness.py` | `All checks passed!` (0 errors) |
-| Lint both files (the CI command) | `uvx ruff check skill_ab_harness.py test_skill_ab_harness.py` | `All checks passed!` (0 errors) |
-| Run tests | `python3 test_skill_ab_harness.py` | last line `53 passed`, exit 0 |
-| Count E702 before fix | `uvx ruff check skill_ab_harness.py test_skill_ab_harness.py --output-format concise` | 13 lines, all `E702` |
+| Lint the module | `uvx ruff check skills_test.py` | `All checks passed!` (0 errors) |
+| Lint both files (the CI command) | `uvx ruff check skills_test.py test_skills_test.py` | `All checks passed!` (0 errors) |
+| Run tests | `python3 test_skills_test.py` | last line `53 passed`, exit 0 |
+| Count E702 before fix | `uvx ruff check skills_test.py test_skills_test.py --output-format concise` | 13 lines, all `E702` |
 
 `uvx` runs ruff without installing it. If `uvx` is unavailable in your environment,
 `pipx run ruff check ...` or `pip install ruff && ruff check ...` are equivalent;
@@ -156,15 +156,15 @@ the `pyproject.toml` `line-length = 100` is honored by all of them.
 ## Scope
 
 **In scope** (the only files you may modify or create):
-- `skill_ab_harness.py` — fix the 4 E702 sites.
-- `test_skill_ab_harness.py` — fix the 9 E702 sites.
+- `skills_test.py` — fix the 4 E702 sites.
+- `test_skills_test.py` — fix the 9 E702 sites.
 - `.github/workflows/lint-test.yml` — **create** this new workflow.
 
 **Out of scope** (do NOT touch):
 - `.github/workflows/skills-test.yml` — the paid A/B gate; leave it exactly as-is.
 - `plans/README.md` — the reviewer maintains the index; do not edit it.
 - `plans/001-*.md` … `plans/007-*.md` — other plans; do not touch.
-- Any other line of `skill_ab_harness.py` / `test_skill_ab_harness.py` beyond the
+- Any other line of `skills_test.py` / `test_skills_test.py` beyond the
   13 E702 sites. Do not reformat, rename, or "tidy" anything else.
 
 ## Git workflow
@@ -178,12 +178,12 @@ unless the operator explicitly asks.
 ### Step 1: Confirm the lint baseline
 
 Run the count command and confirm you see exactly 13 E702 errors across the two
-files (4 in `skill_ab_harness.py`, 9 in `test_skill_ab_harness.py`).
+files (4 in `skills_test.py`, 9 in `test_skills_test.py`).
 
-**Verify**: `uvx ruff check skill_ab_harness.py test_skill_ab_harness.py --output-format concise`
+**Verify**: `uvx ruff check skills_test.py test_skills_test.py --output-format concise`
 → exactly 13 lines, every one containing `E702`. If the count differs, STOP (drift).
 
-### Step 2: Fix the 4 E702 sites in `skill_ab_harness.py`
+### Step 2: Fix the 4 E702 sites in `skills_test.py`
 
 Make these four exact replacements. Each splits one semicolon-joined line into two,
 keeping the original indentation.
@@ -221,9 +221,9 @@ with:
         return 0
 ```
 
-**Verify**: `uvx ruff check skill_ab_harness.py` → `All checks passed!` (0 errors).
+**Verify**: `uvx ruff check skills_test.py` → `All checks passed!` (0 errors).
 
-### Step 3: Fix the 9 E702 sites in `test_skill_ab_harness.py`
+### Step 3: Fix the 9 E702 sites in `test_skills_test.py`
 
 Make these replacements (each splits the semicolon-joined line, preserving
 indentation). Watch the indentation level noted for each — it varies (4, 8, 12).
@@ -297,14 +297,14 @@ with:
         r.task_id = "only"
 ```
 
-**Verify**: `uvx ruff check skill_ab_harness.py test_skill_ab_harness.py` →
+**Verify**: `uvx ruff check skills_test.py test_skills_test.py` →
 `All checks passed!` (0 errors).
 
 ### Step 4: Confirm tests still pass after the formatting edits
 
 The edits are pure formatting, so all 53 tests must still pass.
 
-**Verify**: `python3 test_skill_ab_harness.py` → last line is `53 passed`, exit 0.
+**Verify**: `python3 test_skills_test.py` → last line is `53 passed`, exit 0.
 
 ### Step 5: Create the new free CI workflow
 
@@ -335,10 +335,10 @@ jobs:
         run: pip install ruff
 
       - name: Lint (line-length 100 from pyproject.toml)
-        run: ruff check skill_ab_harness.py test_skill_ab_harness.py
+        run: ruff check skills_test.py test_skills_test.py
 
       - name: Tests (stdlib runner, no claude/git/network)
-        run: python test_skill_ab_harness.py
+        run: python test_skills_test.py
 ```
 
 **Verify** the file is valid YAML:
@@ -349,8 +349,8 @@ import pathlib
 p = pathlib.Path(".github/workflows/lint-test.yml")
 t = p.read_text()
 assert "name: lint-test" in t, "missing workflow name"
-assert "ruff check skill_ab_harness.py test_skill_ab_harness.py" in t, "missing lint step"
-assert "python test_skill_ab_harness.py" in t, "missing test step"
+assert "ruff check skills_test.py test_skills_test.py" in t, "missing lint step"
+assert "python test_skills_test.py" in t, "missing test step"
 assert "secrets" not in t, "workflow must not reference secrets"
 assert "ANTHROPIC_API_KEY" not in t, "workflow must not use the API key"
 print("workflow OK")
@@ -366,24 +366,24 @@ dependency).
   (semicolon splits, no behavior change) and adds a CI YAML file. Writing a test
   for either would test framework/formatter behavior, which the conventions say to
   avoid.
-- Regression guard is the existing suite: `python3 test_skill_ab_harness.py` must
+- Regression guard is the existing suite: `python3 test_skills_test.py` must
   still report `53 passed` after the edits (Step 4). Because the edits touch lines
   inside `cluster_permutation_p` and `main()`'s dispatch, the existing tests that
   exercise the permutation p-value and the CLI dispatch already cover that the
   behavior is unchanged.
-- Verification: `python3 test_skill_ab_harness.py` → `53 passed`.
+- Verification: `python3 test_skills_test.py` → `53 passed`.
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `uvx ruff check skill_ab_harness.py` → `All checks passed!` (0 errors).
-- [ ] `uvx ruff check skill_ab_harness.py test_skill_ab_harness.py` →
+- [ ] `uvx ruff check skills_test.py` → `All checks passed!` (0 errors).
+- [ ] `uvx ruff check skills_test.py test_skills_test.py` →
       `All checks passed!` (0 errors). (This is the exact command the new CI runs.)
-- [ ] `python3 test_skill_ab_harness.py` → `53 passed`, exit 0.
+- [ ] `python3 test_skills_test.py` → `53 passed`, exit 0.
 - [ ] `.github/workflows/lint-test.yml` exists, references no secrets and no
       `ANTHROPIC_API_KEY`, runs both the `ruff check` and `python
-      test_skill_ab_harness.py` steps, and triggers on `push` and `pull_request`.
+      test_skills_test.py` steps, and triggers on `push` and `pull_request`.
 - [ ] `.github/workflows/skills-test.yml` is byte-for-byte unchanged.
 - [ ] No files outside the in-scope list were modified.
 - [ ] `plans/README.md` was NOT edited (the reviewer maintains it).
@@ -398,7 +398,7 @@ Stop and report back (do not improvise) if:
 - A ruff verification still reports errors after your edits, and the remaining
   errors are NOT the E702 sites listed here (a new lint rule or unrelated error
   surfaced — report it rather than fixing unlisted code).
-- `python3 test_skill_ab_harness.py` does not report `53 passed` after the edits —
+- `python3 test_skills_test.py` does not report `53 passed` after the edits —
   a "pure formatting" change unexpectedly altered behavior; do not patch tests to
   make them pass.
 - Fixing any site appears to require touching an out-of-scope file.
@@ -409,15 +409,15 @@ Stop and report back (do not improvise) if:
 
 For whoever owns this next:
 
-- The new `lint-test.yml` lints **both** `skill_ab_harness.py` and
-  `test_skill_ab_harness.py`. If a future change adds a new top-level Python file,
+- The new `lint-test.yml` lints **both** `skills_test.py` and
+  `test_skills_test.py`. If a future change adds a new top-level Python file,
   add it to the `ruff check` line so it is covered too.
 - The lint step relies on `pyproject.toml`'s `[tool.ruff] line-length = 100`. If
   that config moves or changes, the CI line-length follows it automatically — keep
   the config as the single source of truth (don't hard-code `--line-length` in the
   workflow).
 - The test step uses the project's custom stdlib runner (`python
-  test_skill_ab_harness.py`), NOT pytest — do not "modernize" it to `pytest`; the
+  test_skills_test.py`), NOT pytest — do not "modernize" it to `pytest`; the
   STDLIB-ONLY rule forbids adding pytest as a dependency.
 - A reviewer should confirm the new workflow carries no secrets and adds no paid
   `claude` call — its whole value is being free and fast. The paid gate stays in

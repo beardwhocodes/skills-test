@@ -6,7 +6,7 @@
 > plan's status row in `plans/README.md`.
 >
 > **Drift check (run first)**: the repo is not git-tracked. Open
-> `skill_ab_harness.py` and confirm the "Current state" excerpts below still
+> `skills_test.py` and confirm the "Current state" excerpts below still
 > match (especially the `if __name__ == "__main__"` block and `ExperimentConfig`/
 > `Task` dataclasses). On a mismatch, treat it as a STOP condition.
 
@@ -31,7 +31,7 @@ existing Python-literal path keeps working. After this, the try-now story is
 
 ## Current state
 
-- `skill_ab_harness.py` — the whole harness in one file. Relevant pieces:
+- `skills_test.py` — the whole harness in one file. Relevant pieces:
   - `class Task` (lines 88–101, `@dataclass(frozen=True)`): fields `id`, `prompt`,
     `setup_cmd`, `test_cmd`, `lint_cmd`, `build_cmd`.
   - `class ExperimentConfig` (lines 104–142, `@dataclass(frozen=True)`): fields
@@ -39,7 +39,7 @@ existing Python-literal path keeps working. After this, the try-now story is
     `model`, `k`, `max_concurrency`, etc. (all the run knobs).
   - The entry point, currently hand-edited literals:
     ```python
-    # skill_ab_harness.py:1301
+    # skills_test.py:1301
     if __name__ == "__main__":
         cfg = ExperimentConfig(
             repo_path=Path("/path/to/your/repo"),
@@ -61,16 +61,16 @@ existing Python-literal path keeps working. After this, the try-now story is
 
 | Purpose | Command | Expected on success |
 |---|---|---|
-| Compile | `python3 -m py_compile skill_ab_harness.py test_skill_ab_harness.py` | exit 0, no output |
-| Unit tests | `python3 test_skill_ab_harness.py` | last line `N passed` (N grows by the new tests) |
+| Compile | `python3 -m py_compile skills_test.py test_skills_test.py` | exit 0, no output |
+| Unit tests | `python3 test_skills_test.py` | last line `N passed` (N grows by the new tests) |
 | Line length | see Step 5 snippet | `line-length OK` |
-| CLI smoke | `python3 skill_ab_harness.py --help` | prints usage with `init` and `run` |
+| CLI smoke | `python3 skills_test.py --help` | prints usage with `init` and `run` |
 
 ## Scope
 
 **In scope:**
-- `skill_ab_harness.py` (add imports, `load_config`, `cmd_init`, `main`, rewrite `__main__`)
-- `test_skill_ab_harness.py` (add config round-trip tests)
+- `skills_test.py` (add imports, `load_config`, `cmd_init`, `main`, rewrite `__main__`)
+- `test_skills_test.py` (add config round-trip tests)
 - `pyproject.toml` (add `[project.scripts]`)
 
 **Out of scope (do NOT touch):**
@@ -103,7 +103,7 @@ def load_config(config_path: Path) -> tuple[ExperimentConfig, list[Task]]:
     return cfg, tasks
 ```
 
-**Verify**: `python3 -c "import skill_ab_harness"` → exit 0.
+**Verify**: `python3 -c "import skills_test"` → exit 0.
 
 ### Step 2: Add `init` to scaffold config from the cwd
 
@@ -140,7 +140,7 @@ def cmd_init(out_path: Path) -> None:
     print(f"wrote {out_path} — edit it, then: skills-test run -c {out_path}")
 ```
 
-**Verify**: in a scratch dir, `python3 .../skill_ab_harness.py init -c /tmp/x.toml`
+**Verify**: in a scratch dir, `python3 .../skills_test.py init -c /tmp/x.toml`
 then `cat /tmp/x.toml` shows the template with the cwd path filled in.
 
 ### Step 3: Add the argparse `main` and `run` command
@@ -186,8 +186,8 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-**Verify**: `python3 skill_ab_harness.py --help` lists `init` and `run`;
-`python3 skill_ab_harness.py run --help` shows `--example`.
+**Verify**: `python3 skills_test.py --help` lists `init` and `run`;
+`python3 skills_test.py run --help` shows `--example`.
 
 ### Step 4: Register the console script
 
@@ -195,17 +195,17 @@ In `pyproject.toml`, after `[project]`, add:
 
 ```toml
 [project.scripts]
-skill-ab = "skill_ab_harness:main"
+skill-ab = "skills_test:main"
 ```
 
-(For `uvx`/`pipx` the module must be importable as `skill_ab_harness`; it already
+(For `uvx`/`pipx` the module must be importable as `skills_test`; it already
 is — a single top-level module. No package restructure needed.)
 
-**Verify**: `python3 -c "import tomllib, skill_ab_harness as h; assert callable(h.main)"`.
+**Verify**: `python3 -c "import tomllib, skills_test as h; assert callable(h.main)"`.
 
 ### Step 5: Tests + line length
 
-Add to `test_skill_ab_harness.py`:
+Add to `test_skills_test.py`:
 
 ```python
 def test_load_config_round_trips(tmp_path=None):
@@ -235,13 +235,13 @@ Line-length gate:
 ```bash
 python3 - <<'PY'
 import sys
-bad=[(f,i,len(l.rstrip())) for f in ("skill_ab_harness.py","test_skill_ab_harness.py")
+bad=[(f,i,len(l.rstrip())) for f in ("skills_test.py","test_skills_test.py")
      for i,l in enumerate(open(f),1) if len(l.rstrip())>100]
 [print("LONG",*b) for b in bad]; print("line-length", "OK" if not bad else "FAIL"); sys.exit(1 if bad else 0)
 PY
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → `N passed` (2 new tests); line-length `OK`.
+**Verify**: `python3 test_skills_test.py` → `N passed` (2 new tests); line-length `OK`.
 
 ## Test plan
 
@@ -249,16 +249,16 @@ PY
   with `Path` coercion of `repo_path`.
 - `test_load_config_rejects_unknown_key` — a typo'd key raises (loud failure),
   proving the frozen-dataclass `**kwargs` guard works.
-- Model after the existing tests in `test_skill_ab_harness.py` (plain asserts,
+- Model after the existing tests in `test_skills_test.py` (plain asserts,
   `_run_all()` discovers `test_*`).
 
 ## Done criteria
 
-- [ ] `python3 -m py_compile skill_ab_harness.py test_skill_ab_harness.py` exits 0
-- [ ] `python3 skill_ab_harness.py --help` shows `init` and `run`
-- [ ] `python3 skill_ab_harness.py init -c /tmp/x.toml` writes a template; re-running refuses to overwrite
-- [ ] `python3 test_skill_ab_harness.py` passes incl. 2 new config tests
-- [ ] `pyproject.toml` has `[project.scripts] skill-ab = "skill_ab_harness:main"`
+- [ ] `python3 -m py_compile skills_test.py test_skills_test.py` exits 0
+- [ ] `python3 skills_test.py --help` shows `init` and `run`
+- [ ] `python3 skills_test.py init -c /tmp/x.toml` writes a template; re-running refuses to overwrite
+- [ ] `python3 test_skills_test.py` passes incl. 2 new config tests
+- [ ] `pyproject.toml` has `[project.scripts] skill-ab = "skills_test:main"`
 - [ ] line-length gate prints `OK`
 - [ ] `plans/README.md` status row for 001 updated
 

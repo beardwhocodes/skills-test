@@ -31,7 +31,7 @@ is the object people drag into a PR or DM — the thing that converts skeptics.
 
 ## Current state
 
-- `class RunResult` (`skill_ab_harness.py:145`) with `to_dict()` (around line 181)
+- `class RunResult` (`skills_test.py:145`) with `to_dict()` (around line 181)
   serializing every field incl. `diff`, `scores`, `cost_usd`, `num_turns`,
   `activation_reason`, `skill_activated`, `itt_valid` (property). **There is no
   `from_dict`.**
@@ -43,7 +43,7 @@ is the object people drag into a PR or DM — the thing that converts skeptics.
 - `build_report(results, pf, cfg, scorers, seed, manifest)` (`:928`, manifest param
   added by plan 002) — returns Markdown; computes per-metric `estimate_diff`.
 - Judge: `run_qualitative_judge` → `list[JudgeComparison]` (struct at
-  `skill_ab_harness.py:1037`: `task_id, pair_id, ordering, winner_arm, reason`),
+  `skills_test.py:1037`: `task_id, pair_id, ordering, winner_arm, reason`),
   `aggregate_judge` (`:1195`), `build_judge_report` (`:1215`).
 - Convention: stdlib only — use `html.escape`, string templates, inline `<style>`
   and inline `<svg>`. No JS framework; a tiny `<details>`/`<summary>` for collapse
@@ -53,15 +53,15 @@ is the object people drag into a PR or DM — the thing that converts skeptics.
 
 | Purpose | Command | Expected |
 |---|---|---|
-| Compile | `python3 -m py_compile skill_ab_harness.py test_skill_ab_harness.py` | exit 0 |
-| Tests | `python3 test_skill_ab_harness.py` | `N passed` |
+| Compile | `python3 -m py_compile skills_test.py test_skills_test.py` | exit 0 |
+| Tests | `python3 test_skills_test.py` | `N passed` |
 | Line length | plan-001 Step-5 snippet | `OK` |
 
 ## Scope
 
-**In scope:** `skill_ab_harness.py` (add `RunResult.from_dict`, `load_results`,
+**In scope:** `skills_test.py` (add `RunResult.from_dict`, `load_results`,
 `_diff_to_html`, `_dist_svg`, `build_html_report`, and a `report` CLI subcommand);
-`test_skill_ab_harness.py` (from_dict round-trip + html-render tests).
+`test_skills_test.py` (from_dict round-trip + html-render tests).
 
 **Out of scope:** the statistics, the judge logic, the Markdown report body (reuse
 `estimate_diff`/`aggregate_judge`; do not duplicate or alter them).
@@ -177,7 +177,7 @@ build manifest (plan 002), write `build_html_report(...)` to `--out`, print the 
 This spends **zero** `claude`/`git` — pure render. (Judge panel only if a
 `comparisons.json` exists; otherwise omit.)
 
-**Verify**: with a `results.jsonl`, `python3 skill_ab_harness.py report` writes an
+**Verify**: with a `results.jsonl`, `python3 skills_test.py report` writes an
 `.html`; `grep -c "<table" skills-test-report.html` ≥ 1 and `grep -c "class=\"diff\"" ...` ≥ 1.
 
 ### Step 5: Tests
@@ -203,7 +203,7 @@ def test_build_html_report_renders():
     assert "diff for A" in html_doc and "<table" in html_doc
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → `N passed`; line-length `OK`.
+**Verify**: `python3 test_skills_test.py` → `N passed`; line-length `OK`.
 
 ## Test plan
 

@@ -8,7 +8,7 @@
 >
 > **Drift check (run first)**: This repo is NOT git-initialized, so there is no
 > SHA to diff against. Instead, compare the "Current state" excerpts below to
-> the live code in `skill_ab_harness.py` at the cited line numbers BEFORE
+> the live code in `skills_test.py` at the cited line numbers BEFORE
 > editing. If any excerpt no longer matches the file (line numbers may have
 > shifted — search by the quoted text), treat it as a STOP condition.
 
@@ -35,10 +35,10 @@ first built; see Maintenance notes. Reviving it is explicitly out of scope here.
 
 ## Current state
 
-Single module under change: `skill_ab_harness.py` (~3715 lines). The `--live`
+Single module under change: `skills_test.py` (~3715 lines). The `--live`
 machinery lives in three spots plus one test.
 
-**1. `cmd_demo` — the function, `skill_ab_harness.py:3397-3418`** (the `live`
+**1. `cmd_demo` — the function, `skills_test.py:3397-3418`** (the `live`
 parameter, the misleading docstring line, and the dead raise branch):
 
 ```python
@@ -66,7 +66,7 @@ def cmd_demo(out_dir: Path, live: bool = False) -> None:
           f"open the HTML to see the on/off diff drill-down. No money spent.")
 ```
 
-**2. argparse wiring inside `main`, `skill_ab_harness.py:3654-3656`** (`main` is
+**2. argparse wiring inside `main`, `skills_test.py:3654-3656`** (`main` is
 defined at line 3603: `def main(argv: list[str] | None = None) -> int:`):
 
 ```python
@@ -75,14 +75,14 @@ defined at line 3603: `def main(argv: list[str] | None = None) -> int:`):
     pd.add_argument("--live", action="store_true", help="actually run claude (costs $)")
 ```
 
-**3. dispatch inside `main`, `skill_ab_harness.py:3662-3663`**:
+**3. dispatch inside `main`, `skills_test.py:3662-3663`**:
 
 ```python
     if args.cmd == "demo":
         cmd_demo(args.out, args.live); return 0
 ```
 
-**4. the demo test, `test_skill_ab_harness.py:499-504`** (passes `live=False`
+**4. the demo test, `test_skills_test.py:499-504`** (passes `live=False`
 explicitly — it must stop passing a removed kwarg):
 
 ```python
@@ -99,7 +99,7 @@ Conventions that apply here:
 - **stdlib-only is a hard rule** — never add a dependency (no numpy/pandas/
   jinja/pytest). Python >= 3.11.
 - Comments explain **why**, not what.
-- Tests use a custom stdlib runner (NOT pytest) in `test_skill_ab_harness.py`;
+- Tests use a custom stdlib runner (NOT pytest) in `test_skills_test.py`;
   the test module is imported as `h`. argparse on an unknown flag raises
   `SystemExit` (exit code 2) — that is the behavior the new test asserts.
 - `README.md:13,47` documents the `demo` command but does NOT mention `--live`;
@@ -111,18 +111,18 @@ Conventions that apply here:
 
 | Purpose | Command | Expected on success |
 |---------|---------|---------------------|
-| Tests   | `python3 test_skill_ab_harness.py` | all tests pass, exit 0 |
-| Lint    | `uvx ruff check skill_ab_harness.py` | `All checks passed!`, exit 0 |
-| Confirm flag gone | `python3 skill_ab_harness.py demo --live` | argparse error: `unrecognized arguments: --live`, exit 2 |
-| Confirm demo still works | `python3 skill_ab_harness.py demo -o /tmp/sa-demo-017` | prints `demo report:` / `demo badge:`, exit 0 |
+| Tests   | `python3 test_skills_test.py` | all tests pass, exit 0 |
+| Lint    | `uvx ruff check skills_test.py` | `All checks passed!`, exit 0 |
+| Confirm flag gone | `python3 skills_test.py demo --live` | argparse error: `unrecognized arguments: --live`, exit 2 |
+| Confirm demo still works | `python3 skills_test.py demo -o /tmp/sa-demo-017` | prints `demo report:` / `demo badge:`, exit 0 |
 
 (Run all commands from the repo root: `/Users/copyjosh/Code/skills-test`.)
 
 ## Scope
 
 **In scope** (the only files you should modify):
-- `skill_ab_harness.py`
-- `test_skill_ab_harness.py`
+- `skills_test.py`
+- `test_skills_test.py`
 
 **Out of scope** (do NOT touch):
 - `plans/005-demo-zero-setup.md` and any other `plans/00*.md` — those are DONE,
@@ -144,7 +144,7 @@ command.
 
 ### Step 1: Strip `--live` out of `cmd_demo`
 
-In `skill_ab_harness.py`, change the function signature, docstring, and remove
+In `skills_test.py`, change the function signature, docstring, and remove
 the dead branch. Target shape:
 
 ```python
@@ -162,13 +162,13 @@ description; (c) delete the three lines `if live:` / `raise SystemExit(...)`
 (both continuation lines of the message). Leave everything from
 `results = _demo_results()` onward unchanged.
 
-**Verify**: `grep -n "live" skill_ab_harness.py | grep -i demo` → no output
+**Verify**: `grep -n "live" skills_test.py | grep -i demo` → no output
 (no `live` token remains in the demo function/dispatch). And
-`grep -n "def cmd_demo" skill_ab_harness.py` → shows `def cmd_demo(out_dir: Path) -> None:`.
+`grep -n "def cmd_demo" skills_test.py` → shows `def cmd_demo(out_dir: Path) -> None:`.
 
 ### Step 2: Remove the `--live` argparse argument
 
-In `main`, delete this single line (currently `skill_ab_harness.py:3656`):
+In `main`, delete this single line (currently `skills_test.py:3656`):
 
 ```python
     pd.add_argument("--live", action="store_true", help="actually run claude (costs $)")
@@ -176,11 +176,11 @@ In `main`, delete this single line (currently `skill_ab_harness.py:3656`):
 
 Leave the `add_parser("demo", ...)` and `-o/--out` lines intact.
 
-**Verify**: `grep -n 'add_argument("--live"' skill_ab_harness.py` → no output.
+**Verify**: `grep -n 'add_argument("--live"' skills_test.py` → no output.
 
 ### Step 3: Fix the dispatch call
 
-In `main`, change the demo dispatch (currently `skill_ab_harness.py:3663`) from
+In `main`, change the demo dispatch (currently `skills_test.py:3663`) from
 `cmd_demo(args.out, args.live); return 0` to:
 
 ```python
@@ -188,7 +188,7 @@ In `main`, change the demo dispatch (currently `skill_ab_harness.py:3663`) from
         cmd_demo(args.out); return 0
 ```
 
-**Verify**: `grep -n "args.live" skill_ab_harness.py` → no output.
+**Verify**: `grep -n "args.live" skills_test.py` → no output.
 
 ### Step 4: Confirm no docs reference the removed flag
 
@@ -206,11 +206,11 @@ the docs.
 
 ### Step 5: Update the existing demo test
 
-In `test_skill_ab_harness.py:501`, change `h.cmd_demo(out, live=False)` to
+In `test_skills_test.py:501`, change `h.cmd_demo(out, live=False)` to
 `h.cmd_demo(out)` (the `live` kwarg no longer exists). Keep the rest of
 `test_demo_command_writes_offline` unchanged.
 
-**Verify**: `grep -n "live=False" test_skill_ab_harness.py` → no output.
+**Verify**: `grep -n "live=False" test_skills_test.py` → no output.
 
 ### Step 6: Add a regression test that `--live` is rejected
 
@@ -228,11 +228,11 @@ def test_demo_live_flag_removed():
         assert e.code == 2  # argparse "unrecognized arguments" exit code
 ```
 
-Note: `h.main` is `skill_ab_harness.main(argv)`; argparse prints an error to
+Note: `h.main` is `skills_test.main(argv)`; argparse prints an error to
 stderr during the test — that is expected and harmless. Match the import alias
 `h` already used at the top of the test file.
 
-**Verify**: `python3 test_skill_ab_harness.py` → all tests pass (now including
+**Verify**: `python3 test_skills_test.py` → all tests pass (now including
 `test_demo_live_flag_removed`).
 
 ## Test plan
@@ -244,26 +244,26 @@ stderr during the test — that is expected and harmless. Match the import alias
   proves `--live` is no longer a recognized argument and the CLI exits 2 instead
   of silently accepting then crashing. Model it structurally after the adjacent
   `test_demo_command_writes_offline` (same `tempfile` + `h.` conventions).
-- Verification: `python3 test_skill_ab_harness.py` → all tests pass, including
+- Verification: `python3 test_skills_test.py` → all tests pass, including
   the one new test (53 existing + 1 new = 54).
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `python3 test_skill_ab_harness.py` exits 0; `test_demo_live_flag_removed`
+- [ ] `python3 test_skills_test.py` exits 0; `test_demo_live_flag_removed`
       exists and passes; `test_demo_command_writes_offline` still passes.
-- [ ] `uvx ruff check skill_ab_harness.py` prints `All checks passed!` (exit 0);
+- [ ] `uvx ruff check skills_test.py` prints `All checks passed!` (exit 0);
       no line exceeds 100 columns.
-- [ ] `grep -n "args.live" skill_ab_harness.py` returns no matches.
-- [ ] `grep -n 'add_argument("--live"' skill_ab_harness.py` returns no matches.
-- [ ] `grep -n "def cmd_demo" skill_ab_harness.py` shows
+- [ ] `grep -n "args.live" skills_test.py` returns no matches.
+- [ ] `grep -n 'add_argument("--live"' skills_test.py` returns no matches.
+- [ ] `grep -n "def cmd_demo" skills_test.py` shows
       `def cmd_demo(out_dir: Path) -> None:` (no `live` parameter).
-- [ ] `python3 skill_ab_harness.py demo --live` exits non-zero with an
+- [ ] `python3 skills_test.py demo --live` exits non-zero with an
       `unrecognized arguments: --live` message.
-- [ ] `python3 skill_ab_harness.py demo -o /tmp/sa-demo-017` exits 0 and prints
+- [ ] `python3 skills_test.py demo -o /tmp/sa-demo-017` exits 0 and prints
       `demo report:`.
-- [ ] No files outside `skill_ab_harness.py` and `test_skill_ab_harness.py` were
+- [ ] No files outside `skills_test.py` and `test_skills_test.py` were
       modified (docs only if Step 4 found a match — it should not have).
 
 ## STOP conditions

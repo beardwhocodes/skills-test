@@ -40,16 +40,16 @@ independent ideators surfaced `--demo` as the single highest-leverage item.
 
 | Purpose | Command | Expected |
 |---|---|---|
-| Compile | `python3 -m py_compile skill_ab_harness.py test_skill_ab_harness.py` | exit 0 |
-| Tests | `python3 test_skill_ab_harness.py` | `N passed` |
-| Demo (offline) | `python3 skill_ab_harness.py demo --out /tmp/demo` | writes report.html + badge.svg, exit 0, NO network |
+| Compile | `python3 -m py_compile skills_test.py test_skills_test.py` | exit 0 |
+| Tests | `python3 test_skills_test.py` | `N passed` |
+| Demo (offline) | `python3 skills_test.py demo --out /tmp/demo` | writes report.html + badge.svg, exit 0, NO network |
 | Line length | plan-001 Step-5 snippet | `OK` |
 
 ## Scope
 
-**In scope:** `skill_ab_harness.py` (add `cmd_demo` + a `demo` subparser);
+**In scope:** `skills_test.py` (add `cmd_demo` + a `demo` subparser);
 `fixtures/demo_results.jsonl` (new, pre-recorded), `fixtures/demo_skillab.toml`,
-`fixtures/demo_skill/SKILL.md` (new bundled sample); `test_skill_ab_harness.py`
+`fixtures/demo_skill/SKILL.md` (new bundled sample); `test_skills_test.py`
 (demo-renders test); `pyproject.toml` (ensure fixtures ship — see Step 4).
 
 **Out of scope:** changing `run_experiment`, the stats, or the report internals.
@@ -77,7 +77,7 @@ fixture and `results_dir` is a temp dir (overridden at runtime anyway).
 **Verify**:
 ```bash
 python3 -c "
-import skill_ab_harness as h
+import skills_test as h
 rs=h.load_results(__import__('pathlib').Path('fixtures/demo_results.jsonl'))
 assert len(rs)>=12 and any(r.itt_valid for r in rs); print('fixture loads', len(rs))"
 ```
@@ -124,7 +124,7 @@ handler: `cmd_demo(args.out, args.live); return 0`.
 
 **Verify**:
 ```bash
-python3 skill_ab_harness.py demo --out /tmp/demo
+python3 skills_test.py demo --out /tmp/demo
 test -s /tmp/demo/report.html && test -s /tmp/demo/badge.svg && echo "demo ok"
 grep -q "verified\|inconclusive" /tmp/demo/badge.svg && echo "badge rendered"
 ```
@@ -142,7 +142,7 @@ def test_demo_renders_offline(tmp_path=None):
     assert (out / "badge.svg").exists()
 ```
 
-**Verify**: `python3 test_skill_ab_harness.py` → `N passed`; line-length `OK`.
+**Verify**: `python3 test_skills_test.py` → `N passed`; line-length `OK`.
 
 ### Step 4: Make fixtures ship with the package
 
@@ -150,7 +150,7 @@ In `pyproject.toml`, ensure the `fixtures/` data is included for `uvx`/`pip`
 installs. With a single-module project, add:
 ```toml
 [tool.setuptools]
-py-modules = ["skill_ab_harness"]
+py-modules = ["skills_test"]
 
 [tool.setuptools.package-data]
 "*" = ["fixtures/**"]
@@ -166,12 +166,12 @@ conflicts — don't guess a second backend.)
 - `test_demo_renders_offline` — the offline demo writes a non-trivial HTML report
   and a badge, with no external calls. This is the path users hit first; it must
   never depend on `claude`/auth/network.
-- Manually run `python3 skill_ab_harness.py demo` and open the HTML once.
+- Manually run `python3 skills_test.py demo` and open the HTML once.
 
 ## Done criteria
 
 - [ ] `python3 -m py_compile …` exits 0
-- [ ] `python3 skill_ab_harness.py demo --out /tmp/demo` exits 0 and writes a non-empty `report.html` + `badge.svg`
+- [ ] `python3 skills_test.py demo --out /tmp/demo` exits 0 and writes a non-empty `report.html` + `badge.svg`
 - [ ] the offline demo makes NO `claude`/network calls (verify by reading `cmd_demo`: only file reads + render functions)
 - [ ] badge reads "verified" (the fixture is authored to legitimately earn it: CI excludes 0, ≥2 tasks, 0 contaminated)
 - [ ] `fixtures/` ships per `pyproject.toml`
